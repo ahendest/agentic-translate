@@ -1,0 +1,19 @@
+name: checks
+on: [push, pull_request]
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Unit tests
+        run: env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools -p 'test_*.py'
+      - name: Rebuild the store from text and audit it
+        run: |
+          python3 -B tools/knowledge.py --config knowledge/config.json init
+          python3 -B tools/knowledge.py --config knowledge/config.json import-terms --input knowledge/knowledge.jsonl
+          python3 -B tools/knowledge.py --config knowledge/config.json import-lugat --input knowledge/sources/db_lugat.sql
+          git diff --exit-code knowledge/knowledge.jsonl
+          python3 -B tools/knowledge.py --config knowledge/config.json integrity

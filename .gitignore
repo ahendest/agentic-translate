@@ -1,0 +1,15 @@
+tmp/
+data/
+__pycache__/
+*.py[cod]
+
+# Books are never tracked: originals, prepared sources, translations and editions stay local.
+/Book-original-sources/
+/sources/
+/translations/*/*/
+/output/
+
+# The shared store is rebuilt from knowledge/knowledge.jsonl and knowledge/sources/db_lugat.sql
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
