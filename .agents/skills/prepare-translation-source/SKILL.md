@@ -21,7 +21,8 @@ It writes `sources/<book-id>/segments/NNN-<name>.md`, one unit per spine documen
 order, split at headings when a document is long, and `sources/<book-id>/overview.md` with the
 title, the unit list, the documents it did not convert and the defects it found. Each unit
 starts with a level-2 heading naming its spine document; locators are `segment.md:line`.
-Author notes follow their unit as Markdown footnotes. Text in every script is copied exactly.
+Author notes follow their unit as Markdown footnotes, each body once at its call, also when
+the EPUB keeps it in the same document. Text in every script is copied exactly.
 A rerun on the same EPUB reproduces the same files; the tool refuses to overwrite a prepared
 source that differs, because changing segmentation needs approval.
 
@@ -44,7 +45,7 @@ the user names it.
 
 ## Project routes
 
-prepare --create writes project.json. Add only real values: `verbatim_script` with the Unicode
+prepare writes project.json. Add only real values: `verbatim_script` with the Unicode
 script name (for example `Arabic`) when the source quotes another script and the translation
 keeps those quotations as printed; omit it when the whole source is written in that script.
 Omit progress, release, approval, history or segment status.

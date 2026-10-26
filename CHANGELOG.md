@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- Store schema 7 holds the dictionary and approved terms only. The `placements` table, the
+  `place`, `check` and `migrate` commands and `first_expression` are removed; a store of another
+  schema is rebuilt from `knowledge/knowledge.jsonl`, which no longer lists placements. `scan`
+  takes `--project` and `--units`; `lugat get` follows "Bak:" references one step.
+- A term's first-use note is read from the translation: in book order, the first retained
+  occurrence carries `[^TERM_ID]`, defined once with the exact approved footnote in the same unit.
+- `knowledge/config.json` lists the accepted source languages (`source_languages`: Arabic and
+  Turkish); `prepare` refuses another. The target language is free.
+- `term-request` reuses only an exact original; a prefix match or an approved term inside a
+  compound is returned as `candidates` for a context decision. Matching ignores the apostrophe
+  form and vowel signs (Arabic harakat).
+- The validator rejects empty units, changed author notes, a retained term without its
+  parenthetical and a first use without its note. The success line names what was checked.
+- `prepare` always creates or reuses `translations/<target>/<book>/project.json`; `--create`
+  and `--project` are removed. Units list their line count only.
+- EPUB preparation emits a same-document EPUB 3 note body once, at its call, and keeps the
+  source list numbers (`<ol start>`, `<li value>`).
+
 ## 0.1.0 (2026-10-25)
 
 First public release.

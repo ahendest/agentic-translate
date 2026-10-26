@@ -8,8 +8,9 @@ the religious and technical terms.
 
 - **The book as an EPUB file.** It is the only source of the translation. If your book is a
   PDF or a scan, read [Sources that are not a clean EPUB](docs/source-options.md) first.
-- **The source language and the target language**, as short codes such as `tr` (Turkish),
-  `ro` (Romanian), `fr` (French) or `ur` (Urdu).
+- **The source language and the target language**, as short codes. The book must be in
+  Turkish (`tr`) or Arabic (`ar`). It can be translated into any language, for example `ro`
+  (Romanian), `fr` (French) or `ur` (Urdu).
 
 ## How to start
 
@@ -44,5 +45,5 @@ printed edition from an EPUB-based translation is a later feature.
 ## More
 
 - [AGENTS.md](AGENTS.md): the agents' instructions, commands and checks.
-- [Knowledge overview](knowledge/overview.md): how approved terms and their first use are stored.
+- [Knowledge overview](knowledge/overview.md): how approved terms are stored and rebuilt.
 - [CHANGELOG.md](CHANGELOG.md) and [LICENSE](LICENSE) (MIT).

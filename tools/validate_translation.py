@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Validate a project's translation units: coverage, waiting terms, verbatim quotations and terminology notes.
+"""Validate a project's translation units: coverage, author notes, waiting terms, verbatim quotations and terminology.
 
 Book-specific values come from project.json: `target_language`, `prepared_source`, `translation`
 and optionally `verbatim_script`, the Unicode script name (for example "Arabic") of quotations
 that the translation keeps exactly as printed. A source written in that script omits the key.
 Each source unit `NNN-name.md` has the target file `NNN-name.<language>.md`.
+
+A term's first use is read from the translation itself: in book order, the first retained
+occurrence of an approved term carries its footnote call, and the book defines that note once.
 """
 
 from __future__ import annotations
@@ -27,6 +30,8 @@ TERM_DEFINITION_RE = re.compile(r"^\[\^(term-[^\]\n]+)\]:[ \t]*(.*)$")
 TERM_REFERENCE_RE = re.compile(r"\[\^(term-[^\]\n]+)\]")
 # A retained term may be inflected freely; its parenthetical equivalent is required.
 PARENTHETICAL_RE = re.compile(r" \([^()\n]+\)")
+NOTE_ID_RE = re.compile(r"\[\^([^\]\n]+)\]")
+NOTE_DEFINITION_RE = re.compile(r"^\[\^([^\]\n]+)\]:", re.M)
 
 
 def note_blocks(text: str):
@@ -64,7 +69,7 @@ def note_blocks(text: str):
 
 
 def retained_occurrences(prose: str, terms: dict) -> list[tuple[int, int, str]]:
-    """Each retained term in any inflection, longest reading form first, without nested matches."""
+    """Each retained term in any inflection, longest reading form first, without nested matches; in text order."""
     folded, spans = fold(prose), []
     for identifier, term in sorted(terms.items(), key=lambda item: -len(item[1]["reading"])):
         for match in re.finditer(stem_pattern(term["reading"]), folded):
@@ -74,66 +79,53 @@ def retained_occurrences(prose: str, terms: dict) -> list[tuple[int, int, str]]:
             if any(match.start() < end and match.end() > start for start, end, _ in spans):
                 continue
             spans.append((match.start(), match.end(), identifier))
-    return spans
+    return sorted(spans)
 
 
-def line_of(text: str, offset: int) -> int:
-    return text.count("\n", 0, offset) + 1
+def author_notes(text: str) -> tuple[Counter, Counter]:
+    """Calls and definitions of the non-terminology footnotes."""
+    definitions = Counter(i for i in NOTE_DEFINITION_RE.findall(text) if not i.startswith("term-"))
+    calls = Counter(i for i in NOTE_ID_RE.findall(text) if not i.startswith("term-")) - definitions
+    return calls, definitions
 
 
-def check_editorial_footnotes(text: str, path: Path, terms: dict, order: dict,
-                             definitions: Counter, references: Counter, first_occurrences: set[str]) -> str:
-    """Verify terminology notes and parentheticals; return the prose with note bodies blanked, lines kept."""
-    parts, position = [], 0
+def check_editorial_footnotes(text: str, path: Path, terms: dict, noted: set[str],
+                             definitions: Counter, references: Counter) -> str:
+    """Verify terminology notes and parentheticals; return the prose with note bodies blanked, lines kept.
+
+    `noted` holds the terms whose first occurrence came in an earlier unit of the book."""
+    parts, position, defined_here = [], 0, set()
     for start, end, identifier, body in note_blocks(text):
         if identifier not in terms:
             raise RuntimeError(f"Unknown editorial footnote {identifier} in {path.name}")
         if body.strip() != terms[identifier]["body"].strip():
             raise RuntimeError(f"Unapproved or altered editorial footnote {identifier} in {path.name}")
         definitions[identifier] += 1
+        defined_here.add(identifier)
         parts.extend((text[position:start], "\n" * text[start:end].count("\n")))
         position = end
     parts.append(text[position:])
     prose = "".join(parts)
     calls = list(TERM_REFERENCE_RE.finditer(prose))
     for match in calls:
-        identifier = match.group(1)
-        if identifier not in terms:
-            raise RuntimeError(f"Unknown terminology reference {identifier} in {path.name}")
-        term = terms[identifier]
-        if path != term["path"] or line_of(prose, match.start()) != term["line"]:
-            raise RuntimeError(f"Wrong first-occurrence location for {identifier} in {path.name}")
-        references[identifier] += 1
+        if match.group(1) not in terms:
+            raise RuntimeError(f"Unknown terminology reference {match.group(1)} in {path.name}")
+        references[match.group(1)] += 1
+    if {match.group(1) for match in calls} != defined_here:
+        raise RuntimeError(f"Terminology notes must be called and defined in the same unit: {path.name}")
 
     attached = set()
-    occurrences = []
     for start, end, identifier in retained_occurrences(prose, terms):
         parenthetical = PARENTHETICAL_RE.match(prose, end)
         if not parenthetical:
             raise RuntimeError(f"Missing parenthetical equivalent for {prose[start:end]} in {path.name}")
-        occurrences.append((start, parenthetical.end(), identifier))
-
-    lines = prose.split("\n")
-    for identifier, term in terms.items():
-        phrase = term.get("first_phrase")
-        if phrase and path == term["path"]:
-            offset = sum(len(line) + 1 for line in lines[:term["line"] - 1])
-            match = re.search(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", lines[term["line"] - 1] if term["line"] <= len(lines) else "")
-            if not match:
-                raise RuntimeError(f"Missing contextual first-occurrence phrase for {identifier} in {path.name}")
-            occurrences.append((offset + match.start(), offset + match.end(), identifier))
-    for start, end, identifier in sorted(occurrences):
-        term = terms[identifier]
-        expected = f"[^{identifier}]"
-        line = line_of(prose, start)
-        if term["path"] in order and (order[path], line) < (order[term["path"]], term["line"]):
-            raise RuntimeError(f"Term occurs before its recorded first occurrence: {identifier} in {path.name}")
-        if identifier not in first_occurrences and path == term["path"] and line == term["line"]:
-            if not prose[end:].startswith(expected):
+        called = prose[parenthetical.end():].startswith(f"[^{identifier}]")
+        if identifier not in noted:
+            if not called:
                 raise RuntimeError(f"Missing footnote at first term occurrence: {identifier} in {path.name}")
-            first_occurrences.add(identifier)
-        if prose[end:].startswith(expected):
-            attached.add((end, identifier))
+            noted.add(identifier)
+        if called:
+            attached.add((parenthetical.end(), identifier))
     for call in calls:
         if (call.start(), call.group(1)) not in attached:
             raise RuntimeError(f"Terminology reference is not attached to its term: {call.group(1)} in {path.name}")
@@ -186,7 +178,6 @@ def main(argv=None) -> int:
     script = (project.get("verbatim_script") or "").upper()
     if script and not re.fullmatch(r"[A-Z]+(?: [A-Z]+)*", script):
         raise RuntimeError("verbatim_script must be a Unicode script name, e.g. Arabic")
-
     sources = unit_files(project)
     targets = {translation_root / f"{path.stem}.{language}.md": path for path in sources}
     strays = sorted(p.name for p in translation_root.glob(f"*.{language}.md") if p not in targets)
@@ -198,24 +189,33 @@ def main(argv=None) -> int:
         raise RuntimeError(f"Translation scope coverage failed: units={args.units} missing={missing}")
 
     terms = load_project_terms(project, REPO_ROOT)
-    order = {target: index for index, target in enumerate(targets)}
     definitions, references = Counter(), Counter()
-    first_occurrences: set[str] = set()
+    noted: set[str] = set()
+    notes = 0
     for target, source in targets.items():
         if not target.is_file():
             continue
         text = target.read_text(encoding="utf-8")
+        if target in scope and not text.strip():
+            raise RuntimeError(f"Empty translation unit: {target.name}")
         if target in scope and PENDING_TERM_RE.search(text):
             raise RuntimeError(f"Waiting terminology placeholder in {target.name}; complete the term before validation")
-        prose = check_editorial_footnotes(text, target, terms, order, definitions, references, first_occurrences)
+        if target in scope:
+            calls, defined = author_notes(source.read_text(encoding="utf-8"))
+            if author_notes(text) != (calls, defined):
+                raise RuntimeError(f"Author notes differ from the source in {target.name}: "
+                                   f"source calls={sorted(calls.elements())} definitions={sorted(defined.elements())}")
+            notes += sum(defined.values())
+        prose = check_editorial_footnotes(text, target, terms, noted, definitions, references)
         if script and target in scope:
             check_verbatim(source.read_text(encoding="utf-8"), prose, script, target.name)
 
-    required_terms = {identifier for identifier, term in terms.items() if term["path"] in scope}
-    for identifier in sorted(required_terms):
-        if definitions[identifier] != 1 or references[identifier] != 1 or identifier not in first_occurrences:
-            raise RuntimeError(f"Terminology note must have one definition and first-occurrence reference: {identifier}")
-    print(f"translation-ok units={len(scope)} terminology-notes={len(required_terms)}")
+    for identifier in sorted(noted | set(definitions) | set(references)):
+        if definitions[identifier] != 1 or references[identifier] != 1:
+            raise RuntimeError(f"Terminology note must be defined and called once in the book: {identifier}")
+    print(f"translation-ok units={len(scope)}: present and non-empty, no waiting terms, "
+          f"author notes kept={notes}" + (f", verbatim {script.title()} kept" if script else "") +
+          f", retained terms with a parenthetical and their note at first use={len(noted)}; meaning is not checked")
     return 0
 
 

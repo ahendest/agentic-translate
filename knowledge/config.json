@@ -1,1 +1,1 @@
-{"engine":"sqlite","path":"knowledge/knowledge.sqlite","export":"knowledge/knowledge.jsonl"}
+{"engine":"sqlite","path":"knowledge/knowledge.sqlite","export":"knowledge/knowledge.jsonl","source_languages":["ar","tr"]}

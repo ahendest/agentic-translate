@@ -64,6 +64,19 @@ class PrepareEpubTests(unittest.TestCase):
         self.assertIn('`OEBPS/text/notes.xhtml`: non-linear spine item', overview)
         self.assertNotIn('Publisher cover', ''.join(files.values()))
 
+    def test_same_document_note_is_emitted_once_at_its_call(self):
+        build(self.epub, '<p>Text<a epub:type="noteref" href="#n2">2</a>.</p>'
+                         '<aside id="n2" epub:type="footnote"><p>Local note.</p></aside><p>After.</p>')
+        p.write(self.epub, 'book', self.root)
+        second = self.files()['002-b.md']
+        self.assertEqual(second, '## OEBPS/text/b.xhtml\n\nText[^2].\n\nAfter.\n\n[^2]: Local note.\n')
+        self.assertTrue(self.files()['001-a.md'].endswith('[^1]: Author note.\n\n    Second paragraph.\n'))
+
+    def test_list_numbers_follow_the_source(self):
+        build(self.epub, '<ol start="5"><li>Fifth</li><li value="9">Ninth</li><li>Tenth</li></ol><ul><li>Item</li></ul>')
+        p.write(self.epub, 'book', self.root)
+        self.assertIn('5. Fifth\n\n9. Ninth\n\n10. Tenth\n\n- Item', self.files()['002-b.md'])
+
     def test_long_document_splits_at_headings_only(self):
         with patch.object(p, 'LONG', 40):
             p.write(self.epub, 'book', self.root)

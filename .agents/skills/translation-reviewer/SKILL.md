@@ -18,8 +18,8 @@ or inherited conversation history.
    correction, compare the affected source and target directly.
 2. Check accuracy, completeness, logic, negation, modality, referents, theology, imagery,
    repetition, quantities, structure, quotations in the project's verbatim script (copied
-   exactly), approved terminology and the
-   book-wide first-use footnotes supplied with the segment.
+   exactly), approved terminology and its first-use footnote: the first retained occurrence
+   of a term in book order carries the exact note.
 3. Keep the book consistent: search the earlier translated segments for the segment's
    recurring titles, formulas and names, and align their rendering with the established one.
 4. Correct confirmed source, grammar, idiom or coherence errors directly in the target file.
@@ -27,8 +27,8 @@ or inherited conversation history.
    After a repair, reread the whole target paragraph and compare its complete source unit.
 5. Verify human suggestions against the source. Feedback authorizes the identified passages
    only. Locate a quoted passage in the source units before mapping it.
-6. Return missing terms to the coordinator and continue unaffected work. Do not
-   change book-wide placements or files outside your assignment.
+6. Return missing terms to the coordinator and continue unaffected work. Do not change
+   files outside your assignment.
 7. Validate final inputs with the manifest's validator and the given scope.
 
 ## Return

@@ -68,6 +68,11 @@ def walk(node):
             yield from walk(child)
 
 
+def number_attribute(node, name, default):
+    value = node.attrs.get(name, '').strip()
+    return int(value) if re.fullmatch(r'-?\d+', value) else default
+
+
 def slug(value):
     text = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode().lower()
     return re.sub(r'[^a-z0-9]+', '-', text).strip('-') or 'document'
@@ -176,6 +181,9 @@ class Renderer:
 
     def blocks(self, node, inside_note=False):
         result, buffer = [], []
+        # A note body in this document is emitted at its call, not again as prose.
+        local = set() if inside_note else {self.target(n.attrs['href'])[1] for n in walk(node)
+                                           if self.is_call(n) and self.target(n.attrs['href'])[0] == self.document}
 
         def flush():
             text = ''.join(buffer).strip()
@@ -187,6 +195,8 @@ class Renderer:
 
         def visit(current, prefix=''):
             for child in current.children:
+                if isinstance(child, Node) and child.attrs.get('id') in local:
+                    continue
                 if isinstance(child, str) or not (child.tag in BLOCK or child.tag in HEADING or child.tag == 'hr'):
                     if inside_note and isinstance(child, Node) and child.tag == 'a' and self.target(child.attrs.get('href', '#'))[0] == getattr(self, 'back', None):
                         continue  # the note's link back to its call
@@ -204,10 +214,11 @@ class Renderer:
                 elif child.tag == 'hr':
                     result.append('* * *')
                 elif child.tag in ('ul', 'ol'):
-                    number = 0
+                    # The source numbering is kept: <ol start> and <li value> set the next number.
+                    number = number_attribute(child, 'start', 1) - 1
                     for item in child.children:
                         if isinstance(item, Node) and item.tag == 'li':
-                            number += 1
+                            number = number_attribute(item, 'value', number + 1)
                             parts = []
                             self.inline(item, parts, True)
                             text = ' '.join(''.join(parts).split())

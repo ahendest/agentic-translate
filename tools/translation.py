@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Bounded project preparation, source units and terminology requests."""
 import argparse
-import contextlib
 import hashlib
 import json
 import re
@@ -59,47 +58,29 @@ def units(data):
     """Each prepared segment file is one unit, in name order."""
     if not local(data['prepared_source']).is_dir():
         return []
-    return [{'id': path.stem, 'path': relative(path), 'start_line': 1,
-             'end_line': len(path.read_text(encoding='utf-8').splitlines())}
+    return [{'id': path.stem, 'path': relative(path), 'lines': len(path.read_text(encoding='utf-8').splitlines())}
             for path in knowledge.unit_files(dict(data, prepared_source=str(local(data['prepared_source']))))]
 
 
-def prepare(source, source_language, target_language, book=None, project_path=None, create=False):
+def prepare(source, source_language, target_language, book=None):
     for language in (source_language, target_language):
         require(re.fullmatch(r'[a-z]{2,3}(?:-[a-z0-9]+)*', language), 'Use language codes such as tr, ro, fr or ur')
+    allowed = load(ROOT / 'knowledge' / 'config.json').get('source_languages')
+    if allowed is not None:
+        require(source_language in allowed, f'Supported source languages: {sorted(allowed)}')
     source = (ROOT / source).resolve()
     require(source.is_file(), 'The book path must identify an existing file')
     require(source.suffix.lower() == '.epub', 'The source must be an EPUB file')
     book_id = slug(book or source.stem)
-    if project_path:
-        explicit = local(project_path)
-        require(explicit.name == 'project.json' and explicit.parent.parent == ROOT / 'translations' / target_language,
-                'Project must be translations/<target-language>/<book-id>/project.json')
     import_from = None
     if not source.is_relative_to(ROOT):
-        require(create, 'Use --create to import an external source without changing its contents')
         destination = local(Path('Book-original-sources/imported') / source.name)
         require(not destination.exists() or fingerprint(source) == fingerprint(destination), 'Imported filename already contains a different source')
         import_from = source
         source = destination.resolve()
-    candidates = []
-    if project_path:
-        candidates = [local(project_path)]
-    else:
-        named = local(Path('translations') / target_language / book_id / 'project.json')
-        if named.is_file():
-            candidates = [named]
-        else:
-            for path in sorted((ROOT / 'translations' / target_language).glob('*/project.json')):
-                data = load(path)
-                if any(local(item['path']) == source for item in data.get('sources', []) if item.get('role') == 'primary'):
-                    candidates.append(path)
-    require(len(candidates) <= 1, 'Multiple projects use this source; supply --project: ' + ', '.join(relative(p) for p in candidates))
-    path = candidates[0] if candidates else local(Path('translations') / target_language / book_id / 'project.json')
+    path = local(Path('translations') / target_language / book_id / 'project.json')
     is_new = not path.exists()
     if is_new:
-        if not create:
-            return {'state': 'setup_required', 'project': relative(path), 'next': 'Repeat prepare with --create'}
         # Reuse shared preparation only when another manifest binds it to this source.
         prepared = local(Path('sources') / book_id / 'segments')
         if prepared.exists() and any(prepared.iterdir()):
@@ -118,8 +99,7 @@ def prepare(source, source_language, target_language, book=None, project_path=No
         data['validator'] = ['python3', '-B', 'tools/validate_translation.py', '--project', relative(path), '--units', 'UNITS']
     else:
         path, data = project(relative(path))
-        require(path.is_relative_to(ROOT / 'translations' / target_language), 'Project is outside the requested language')
-        require(data.get('source_language') == source_language and data['target_language'] == target_language, 'Language mismatch')
+        require(data.get('source_language') == source_language, 'Source language mismatch')
         require(any(local(item['path']) == source for item in data.get('sources', []) if item.get('role') == 'primary'), 'Requested source differs from project authority; resolve it before preparation')
     if import_from is not None and not source.exists():
         source.parent.mkdir(parents=True, exist_ok=True)
@@ -135,7 +115,7 @@ def prepare(source, source_language, target_language, book=None, project_path=No
     return {'state': 'available' if rows else 'preparation_required', 'project': relative(path),
             'source': relative(source), 'prepared_source': data['prepared_source'],
             'translation': data.get('translation'), 'unit_count': len(rows),
-            'needs': [] if rows else ['prepared_source'], 'preparation_command': None if rows else command}
+            'preparation_command': None if rows else command}
 
 
 def term_request(project_path, term, location):
@@ -162,27 +142,21 @@ def term_request(project_path, term, location):
     request_text = term + ' (' + relative(path) + ':' + str(line) + ')'
     if not found:
         return {'state': 'request', 'text': request_text}
-    book_id = knowledge.book_id(data)
-    for record in found:
-        record['placements'] = [p for p in record['placements'] if p['book_id'] == book_id]
-    return {'state': 'approved', 'records': found}
+    exact = [r for r in found if r['match_type'] == 'exact']
+    if exact:
+        return {'state': 'approved', 'records': exact}
+    # A prefix match is not proof of the same concept: the translator decides by the paragraph.
+    return {'state': 'candidates', 'records': found, 'text': request_text}
 
 
-def known_terms(data, text, start_line):
-    """Expose the first source occurrence of each approved term, in any inflection, without a whole glossary."""
+def known_terms(data, unit_path):
+    """The first occurrence in one unit of each approved term, in any inflection, without a whole glossary."""
     require(data.get('knowledge'), 'No terminology route for this project')
-    store = knowledge.Knowledge(local(data['knowledge']))
-    folded = knowledge.fold(text)
-    found, occupied = {}, []
-    with contextlib.closing(store.read()) as connection:
-        rows = connection.execute('SELECT id,source_form FROM terms WHERE language=? ORDER BY length(source_form) DESC,id', (data['target_language'],)).fetchall()
-    for row in rows:
-        for match in re.finditer(knowledge.stem_pattern(row['source_form']), folded):
-            if any(match.start() < end and match.end() > start for start, end in occupied):
-                continue
-            occupied.append(match.span())
-            found.setdefault(row['id'], {'id': row['id'], 'term': row['source_form'], 'text': text[match.start():match.end()],
-                                         'line': start_line + folded[:match.start()].count('\n')})
+    number = knowledge.unit_number(unit_path)
+    found = {}
+    manifest = dict(data, prepared_source=str(local(data['prepared_source'])))
+    for hit in knowledge.Knowledge(local(data['knowledge'])).scan(manifest, f'{number}-{number}'):
+        found.setdefault(hit['id'], {k: hit[k] for k in ('id', 'term', 'text', 'line')})
     return sorted(found.values(), key=lambda hit: (hit['line'], hit['id']))
 
 
@@ -194,8 +168,6 @@ def main(argv=None):
     p.add_argument('--source-language', required=True)
     p.add_argument('--target-language', required=True)
     p.add_argument('--book')
-    p.add_argument('--project')
-    p.add_argument('--create', action='store_true')
     p = commands.add_parser('segments')
     p.add_argument('--project', required=True)
     p.add_argument('--cursor', type=int, default=0)
@@ -210,7 +182,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         if args.command == 'prepare':
-            result = prepare(args.source, args.source_language, args.target_language, args.book, args.project, args.create)
+            result = prepare(args.source, args.source_language, args.target_language, args.book)
         elif args.command in ('segments', 'read'):
             _, data = project(args.project)
             rows = units(data)
@@ -221,9 +193,8 @@ def main(argv=None):
             else:
                 row = next((row for row in rows if row['id'] == args.unit), None)
                 require(row, 'Unknown source unit')
-                lines = local(row['path']).read_text(encoding='utf-8').splitlines()
-                text = '\n'.join(lines[row['start_line'] - 1:row['end_line']])
-                result = {'source': row, 'text': text, 'known_terms': known_terms(data, text, row['start_line'])}
+                text = local(row['path']).read_text(encoding='utf-8')
+                result = {'source': row, 'text': text, 'known_terms': known_terms(data, row['path'])}
         else:
             result = term_request(args.project, args.term, args.at)
         print(json.dumps({'ok': True, 'result': result}, ensure_ascii=False))
