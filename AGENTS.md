@@ -55,9 +55,9 @@ Every fresh agent starts without inherited history, with this file and the paths
 4. Collect reviews; run the manifest's validator after final changes, with the unit range as
    scope (`--units 001-010`).
    Check coverage before terminology; fix target_integrity failures. The validator also rejects
-   empty units, author notes whose calls or definitions differ from the source, a retained term
-   without its parenthetical, and a first use without its note: in book order, the first
-   retained occurrence of an approved term carries `[^TERM_ID]`, and the book defines that
+   empty units, author notes whose calls or definitions differ from the source, a first use
+   without `term (equivalent)[^TERM_ID]` and a later use with a parenthetical. In book order,
+   the first retained occurrence of an approved term is the first use; the book defines its
    exact note once, in the same unit. Report scope, checks and unresolved passages; do not
    finalize passages awaiting terminology.
 
@@ -93,29 +93,37 @@ lines in the same order; do not start agents.
    source. For recurring titles, formulas and names, search the earlier translated segments
    and reuse their rendering.
 4. When completing a waiting segment, replace each placeholder with the approved term and
-   parenthetical. If no earlier unit holds the note (`grep -l "^\[\^TERM_ID\]:" TRANSLATION_DIR/*.md`),
-   insert the exact footnote at its first occurrence in this unit.
+   its equivalent. If no earlier unit holds the note (`grep -l "^\[\^TERM_ID\]:" TRANSLATION_DIR/*.md`),
+   its first occurrence in this unit is the first use.
 5. Report only the target file, the missing term requests and unresolved passages.
 
 ## Terminology
 
-Retain religious/technical terms whose distinct cultural meaning a direct expression would
-lose: namaz cannot become generic prayer. Arabic origin alone requires no research;
-saadet-i ebediye is directly translatable. Existing approvals remain binding.
+Request every religious or technical concept that has no approved record, also when a direct
+expression seems possible; the user decides in the terminology area whether it is retained or
+translated directly. Existing approvals remain binding.
 Proposals, historical evidence and lexical matches do not approve wording.
 
 Use the approved reading form and note of the record. Inflect the retained term and its
-parenthetical as the sentence requires; do not keep the original form blindly. Repeat the
-term with its parenthetical consistently; place the exact explanatory note only at its first
-retained occurrence in the book, as a Markdown footnote `[^TERM_ID]` defined in the same unit.
-The translation is made in book order, so the earlier translated units show whether the note
+equivalent as the sentence requires; do not keep the original form blindly. At the first use
+in the book write `term (equivalent)[^TERM_ID]` and define the exact note in the same unit;
+at every later use place the equivalent directly after the term, as an apposition, for example
+`Rahman (Cel Milostiv)[^rahman]`, later `Rahman Cel Milostiv`. The
+translation is made in book order, so the earlier translated units show whether the note
 already exists.
+
+A record may lack parts by the user's decision; apply it as stored:
+
+- no footnote: write every use like a later use;
+- no translation: keep the original alone, with `[^TERM_ID]` at the first use when it has a footnote;
+- no reading form: write the translation alone, by meaning;
+- `later_use: original`: the first use reads `term (equivalent)`, later uses the term alone;
+- only a note: translate by meaning as the note says.
 
 Derived words, plurals and spelling variants of an approved term (rahmâniye of Rahmân,
 nüfûs-u emmâre of nefs-i emmâre) follow that term: translate them in harmony with its approved
 equivalent, without a separate term request. If you keep such a word in its original form, it
-is an occurrence of the term: give it the parenthetical, and the footnote when it comes first
-in the book. Wording and approval belong to punctual-term-translation.
+is an occurrence of the term and is written in the same way. Wording and approval belong to punctual-term-translation.
 
 ## Always do
 
@@ -129,6 +137,7 @@ in the book. Wording and approval belong to punctual-term-translation.
   references and context. Hold only unresolved passages; global blocking requires substantial
   unreadability or uncertain completeness.
 - Use bounded retrieval for large technical output.
+- When you (agentic-translator) asked to user about terms and he responded you to directly translate them (omitting punctual term-translation), you should translate it normally, considering the context. But you should add this terms to the sqlite db, without footnote. Also user can ask: "Do not translate, just use original"; in that case, use original, but add this term to the sqlite db and add note: "original should be used", no footnote no translation.
 
 ## Ask first
 
