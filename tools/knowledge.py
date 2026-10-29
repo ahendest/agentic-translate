@@ -14,9 +14,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WRITE_ROOTS = (ROOT / 'knowledge',)
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 9
 LANGUAGE = r'[a-z]{2,3}(?:-[a-z0-9]+)*'
-TERM_FIELDS = ('id','language','source_form','reading_form','translation','arabic','footnote','sense','note','approval','approved_at')
+TERM_FIELDS = ('id','language','source_form','reading_form','translation','arabic','footnote','later_use','sense','note','approval','approved_at')
 UNIT = re.compile(r'(\d+)-')
 
 class KnowledgeError(Exception):
@@ -154,7 +154,17 @@ def required(record, fields):
             fail('missing_data',f'Missing field: {field}')
 
 def validate_term(r):
-    required(r,['id','language','source_form','reading_form','translation','footnote','sense','approval','approved_at'])
+    required(r,['id','language','source_form','sense','approval','approved_at'])
+    # A missing reading form, translation or footnote is a decision, not an error.
+    for field in ('reading_form','translation','arabic','footnote','note'):
+        if r.get(field) is not None and not (isinstance(r[field],str) and r[field].strip()):
+            fail('invalid_record',f'{field} must be text or null',2)
+    if not (r.get('reading_form') or r.get('translation') or r.get('note')):
+        fail('invalid_record','A term needs a reading form, a translation or a note',2)
+    if r.get('footnote') and not r.get('reading_form'):
+        fail('invalid_record','A footnote is called after the retained term; it needs a reading form',2)
+    if r.get('later_use','equivalent') not in ('equivalent','original'):
+        fail('invalid_record','later_use must be equivalent or original',2)
     unknown=set(r)-set(TERM_FIELDS)
     if unknown: fail('invalid_record',f'Unknown term fields: {sorted(unknown)}',2)
     if not re.fullmatch(r'[\w-]+',r['id']): fail('invalid_record','Term ID must be usable as a footnote ID',2)
@@ -242,7 +252,7 @@ class Knowledge:
 
     def put_term(self,c,r):
         """Insert or replace one approved term."""
-        validate_term(r)
+        r=dict(r,later_use=r.get('later_use') or 'equivalent'); validate_term(r)
         old=c.execute('SELECT language FROM terms WHERE id=?',(r['id'],)).fetchone()
         if old and old[0]!=r['language']: fail('language_conflict',f"Term {r['id']} belongs to another language")
         c.execute('INSERT INTO terms VALUES ('+','.join('?'*len(TERM_FIELDS))+') ON CONFLICT(id) DO UPDATE SET '+
@@ -356,7 +366,7 @@ def load_project_terms(project, repo_root=ROOT):
     required(manifest,['target_language'])
     if not manifest.get('knowledge'): fail('missing_knowledge_route','Project has no knowledge configuration route')
     store=Knowledge(resolve(manifest['knowledge']))
-    return {r['id']:{'reading':r['reading_form'],'gloss':r['translation'],'body':r['footnote']}
+    return {r['id']:{'reading':r['reading_form'],'gloss':r['translation'],'body':r['footnote'],'later':r['later_use']}
             for r in store.terms_list(manifest['target_language'])}
 
 def main(argv=None):

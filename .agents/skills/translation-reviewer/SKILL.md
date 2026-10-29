@@ -17,9 +17,10 @@ or inherited conversation history.
    naturalness, coherence and voice, then compare the full source independently. For a
    correction, compare the affected source and target directly.
 2. Check accuracy, completeness, logic, negation, modality, referents, theology, imagery,
-   repetition, quantities, structure, quotations in the project's verbatim script (copied
-   exactly), approved terminology and its first-use footnote: the first retained occurrence
-   of a term in book order carries the exact note.
+   repetition, quantities, structure, approved terminology and its first-use footnote: the
+   first retained occurrence of a term in book order reads `term (equivalent)[^TERM_ID]`,
+   later uses place the equivalent directly after the term, as an apposition. Quotations in the project's verbatim
+   script are checked by the validator; do not compare them by hand.
 3. Keep the book consistent: search the earlier translated segments for the segment's
    recurring titles, formulas and names, and align their rendering with the established one.
 4. Correct confirmed source, grammar, idiom or coherence errors directly in the target file.

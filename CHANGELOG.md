@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Store schema 9: `reading_form` and `translation` may be null and `later_use` records whether
+  later uses repeat the equivalent or keep the original alone; a record may hold only a note.
+  Term IDs are the plain term slug, without a prefix or language; the validator recognizes a
+  term note by its ID in the store. Rebuild an older store from `knowledge/knowledge.jsonl`.
+
+- Store schema 8: `footnote` may be null for a term approved without a note; every use of such
+  a term reads `term equivalent`. Rebuild an older store from `knowledge/knowledge.jsonl`.
+- Translators request every religious or technical concept without an approved record; later
+  uses place the equivalent directly after the term. The validator collapses whitespace in
+  verbatim runs and ignores waiting placeholders outside the scope and term IDs inside note calls.
 - Store schema 7 holds the dictionary and approved terms only. The `placements` table, the
   `place`, `check` and `migrate` commands and `first_expression` are removed; a store of another
   schema is rebuilt from `knowledge/knowledge.jsonl`, which no longer lists placements. `scan`
@@ -13,8 +23,12 @@
 - `term-request` reuses only an exact original; a prefix match or an approved term inside a
   compound is returned as `candidates` for a context decision. Matching ignores the apostrophe
   form and vowel signs (Arabic harakat).
-- The validator rejects empty units, changed author notes, a retained term without its
-  parenthetical and a first use without its note. The success line names what was checked.
+- Only the first use carries the parenthetical: `Rahman (cel mai milostiv)[^term-ro-rahman]`,
+  later `Rahman cel mai milostiv`. The validator rejects empty units, changed author notes, a
+  first use without its parenthetical or note and a later use with a parenthetical. The success
+  line names what was checked.
+- The preparation agent and the reviewer no longer check Arabic quotations by hand; the
+  validator's verbatim check covers them.
 - `prepare` always creates or reuses `translations/<target>/<book>/project.json`; `--create`
   and `--project` are removed. Units list their line count only.
 - EPUB preparation emits a same-document EPUB 3 note body once, at its call, and keeps the

@@ -34,8 +34,9 @@ the user names it.
 1. Read the overview. For each document listed as not converted, confirm in the EPUB that it
    is navigation, a cover or publisher material; report any that holds book text.
 2. Compare a sample of units (beginning, middle, end, and every unit named under defects)
-   with the matching EPUB documents: order, headings, paragraphs, author notes with their
-   calls, and quotations in other scripts.
+   with the matching EPUB documents: order, headings, paragraphs and author notes with their
+   calls. Text in other scripts, such as Arabic, is copied exactly by the tool; do not check
+   it by hand.
 3. A long unit without headings stays one unit; never split unlocated text by length. List
    such units in the report.
 4. Fix a unit only for a defect the EPUB itself proves, by editing that file with the

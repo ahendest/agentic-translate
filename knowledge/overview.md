@@ -7,12 +7,12 @@ auditing and rebuild.
 
 ## Tables
 
-Schema 7. Each table has one writer.
+Schema 8. Each table has one writer.
 
 | Table | Content | Writer |
 | --- | --- | --- |
 | `lugat`, `lugat_fts` | Source dictionary and its search index | Import only, from `sources/db_lugat.sql` |
-| `terms` | One approved term: `language`, `source_form` (as in the source), `reading_form` (as printed in the book), `translation` (the parenthetical), `arabic`, `footnote`, `sense`, optional `note`, `approval`, `approved_at` | punctual-term-translation, after human approval |
+| `terms` | One approved term: `language`, `source_form` (as in the source), `reading_form` (as printed in the book; null: only the equivalent is written), `translation` (the equivalent; null: the original stays alone), `arabic`, `footnote` (null: no note), `later_use` (`equivalent` or `original`: what later uses write), `sense`, optional `note`, `approval`, `approved_at` | punctual-term-translation, after human approval |
 
 Term IDs are `term-<language>-<slug>` and are also the footnote IDs in book text. A source
 form without Latin letters or digits gets `u` and a hash of its folded form as slug. Queries
@@ -35,8 +35,12 @@ preserves the user-supplied terminology files that the first ten approvals came 
 ## First-use notes
 
 A term's note lives in the translation, not in the store: the first retained occurrence of
-the term in book order carries the native footnote `[^TERM_ID]`, defined with the exact approved
-footnote in the same unit. Preserve author note IDs, bodies and numbering without collisions.
+the term in book order reads `term (equivalent)[^TERM_ID]`, with the native footnote defined
+by the exact approved footnote in the same unit; later uses place the equivalent directly
+after the term, as an apposition. A record may lack a reading form, a translation or a
+footnote, and `later_use: original` keeps the term alone after its first use; each is a user
+decision that [AGENTS.md](../AGENTS.md#terminology) applies. The term ID is the plain term
+slug; a footnote ID is a term note when it names an approved term. Preserve author note IDs, bodies and numbering without collisions.
 Exclude generated contents and verbatim quotations from replacement. The book validator checks
 the note's place and wording.
 

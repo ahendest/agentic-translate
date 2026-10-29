@@ -7,7 +7,9 @@ that the translation keeps exactly as printed. A source written in that script o
 Each source unit `NNN-name.md` has the target file `NNN-name.<language>.md`.
 
 A term's first use is read from the translation itself: in book order, the first retained
-occurrence of an approved term carries its footnote call, and the book defines that note once.
+occurrence of an approved term carries its parenthetical equivalent and footnote call, and the
+book defines that note once. Later occurrences carry no parenthetical. A term ID is a footnote ID
+that names an approved term; other footnotes are author notes.
 """
 
 from __future__ import annotations
@@ -26,22 +28,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from knowledge import fold, load_project_terms, stem_pattern, unit_files, unit_number, unit_range  # noqa: E402
 
 PENDING_TERM_RE = re.compile(r"\{\{TERM:")
-TERM_DEFINITION_RE = re.compile(r"^\[\^(term-[^\]\n]+)\]:[ \t]*(.*)$")
-TERM_REFERENCE_RE = re.compile(r"\[\^(term-[^\]\n]+)\]")
-# A retained term may be inflected freely; its parenthetical equivalent is required.
+# A waiting unit outside the scope keeps its placeholders; they are not term occurrences.
+PLACEHOLDER_RE = re.compile(r"\{\{TERM:[^}\n]*\}\}")
+TERM_DEFINITION_RE = re.compile(r"^\[\^([^\]\n]+)\]:[ \t]*(.*)$")
+TERM_REFERENCE_RE = re.compile(r"\[\^([^\]\n]+)\]")
+# A retained term may be inflected freely; its first use requires the parenthetical equivalent.
 PARENTHETICAL_RE = re.compile(r" \([^()\n]+\)")
 NOTE_ID_RE = re.compile(r"\[\^([^\]\n]+)\]")
 NOTE_DEFINITION_RE = re.compile(r"^\[\^([^\]\n]+)\]:", re.M)
 
 
-def note_blocks(text: str):
+def note_blocks(text: str, terms: dict):
     """Yield native Markdown terminology notes, preserving logical body lines."""
     lines = text.splitlines(keepends=True)
     offset = i = 0
     while i < len(lines):
         line = lines[i]
         match = TERM_DEFINITION_RE.fullmatch(line.rstrip("\r\n"))
-        if not match:
+        if not match or match.group(1) not in terms:
             offset += len(line)
             i += 1
             continue
@@ -71,10 +75,15 @@ def note_blocks(text: str):
 def retained_occurrences(prose: str, terms: dict) -> list[tuple[int, int, str]]:
     """Each retained term in any inflection, longest reading form first, without nested matches; in text order."""
     folded, spans = fold(prose), []
-    for identifier, term in sorted(terms.items(), key=lambda item: -len(item[1]["reading"])):
+    # Note calls such as `[^sunnet-i-seniye]` hold term IDs, not term uses.
+    calls = [match.span() for match in NOTE_ID_RE.finditer(prose)]
+    retained = {identifier: term for identifier, term in terms.items() if term["reading"]}
+    for identifier, term in sorted(retained.items(), key=lambda item: -len(item[1]["reading"])):
         for match in re.finditer(stem_pattern(term["reading"]), folded):
             # Apostrophe-linked source compounds are separate concepts.
             if prose[match.end():].startswith(("’", "'")):
+                continue
+            if any(match.start() < end and match.end() > start for start, end in calls):
                 continue
             if any(match.start() < end and match.end() > start for start, end, _ in spans):
                 continue
@@ -82,10 +91,10 @@ def retained_occurrences(prose: str, terms: dict) -> list[tuple[int, int, str]]:
     return sorted(spans)
 
 
-def author_notes(text: str) -> tuple[Counter, Counter]:
+def author_notes(text: str, terms: dict) -> tuple[Counter, Counter]:
     """Calls and definitions of the non-terminology footnotes."""
-    definitions = Counter(i for i in NOTE_DEFINITION_RE.findall(text) if not i.startswith("term-"))
-    calls = Counter(i for i in NOTE_ID_RE.findall(text) if not i.startswith("term-")) - definitions
+    definitions = Counter(i for i in NOTE_DEFINITION_RE.findall(text) if i not in terms)
+    calls = Counter(i for i in NOTE_ID_RE.findall(text) if i not in terms) - definitions
     return calls, definitions
 
 
@@ -95,10 +104,8 @@ def check_editorial_footnotes(text: str, path: Path, terms: dict, noted: set[str
 
     `noted` holds the terms whose first occurrence came in an earlier unit of the book."""
     parts, position, defined_here = [], 0, set()
-    for start, end, identifier, body in note_blocks(text):
-        if identifier not in terms:
-            raise RuntimeError(f"Unknown editorial footnote {identifier} in {path.name}")
-        if body.strip() != terms[identifier]["body"].strip():
+    for start, end, identifier, body in note_blocks(text, terms):
+        if terms[identifier]["body"] is None or body.strip() != terms[identifier]["body"].strip():
             raise RuntimeError(f"Unapproved or altered editorial footnote {identifier} in {path.name}")
         definitions[identifier] += 1
         defined_here.add(identifier)
@@ -106,26 +113,33 @@ def check_editorial_footnotes(text: str, path: Path, terms: dict, noted: set[str
         position = end
     parts.append(text[position:])
     prose = "".join(parts)
-    calls = list(TERM_REFERENCE_RE.finditer(prose))
+    calls = [match for match in TERM_REFERENCE_RE.finditer(prose) if match.group(1) in terms]
     for match in calls:
-        if match.group(1) not in terms:
-            raise RuntimeError(f"Unknown terminology reference {match.group(1)} in {path.name}")
         references[match.group(1)] += 1
     if {match.group(1) for match in calls} != defined_here:
         raise RuntimeError(f"Terminology notes must be called and defined in the same unit: {path.name}")
 
+    # The first use reads `term (equivalent)[^id]`: the parenthetical when the term has an equivalent and a
+    # footnote or later uses keep the term alone, the call when it has a footnote. Later uses carry no
+    # parentheses. A term with neither has no first use: every use is written like a later use.
     attached = set()
     for start, end, identifier in retained_occurrences(prose, terms):
+        term = terms[identifier]
+        gloss = bool(term["gloss"]) and (bool(term["body"]) or term["later"] == "original")
         parenthetical = PARENTHETICAL_RE.match(prose, end)
-        if not parenthetical:
-            raise RuntimeError(f"Missing parenthetical equivalent for {prose[start:end]} in {path.name}")
-        called = prose[parenthetical.end():].startswith(f"[^{identifier}]")
-        if identifier not in noted:
-            if not called:
+        if identifier in noted or not (gloss or term["body"]):
+            if parenthetical:
+                raise RuntimeError(f"Parenthetical after the first use of {identifier}: {prose[start:end]}{parenthetical.group()} "
+                                   f"in {path.name}; write the equivalent without parentheses")
+            continue
+        if gloss and not parenthetical:
+            raise RuntimeError(f"Missing parenthetical equivalent at the first use of {prose[start:end]} in {path.name}")
+        after = parenthetical.end() if gloss else end
+        if term["body"]:
+            if not prose[after:].startswith(f"[^{identifier}]"):
                 raise RuntimeError(f"Missing footnote at first term occurrence: {identifier} in {path.name}")
-            noted.add(identifier)
-        if called:
-            attached.add((parenthetical.end(), identifier))
+            attached.add((after, identifier))
+        noted.add(identifier)
     for call in calls:
         if (call.start(), call.group(1)) not in attached:
             raise RuntimeError(f"Terminology reference is not attached to its term: {call.group(1)} in {path.name}")
@@ -148,7 +162,7 @@ def script_runs(text: str, script: str) -> list[str]:
             current.append(character)
             gap = []
         elif character.isspace() and current:
-            gap.append(" ")
+            gap = [" "]
         else:
             if current:
                 runs.append("".join(current))
@@ -201,21 +215,22 @@ def main(argv=None) -> int:
         if target in scope and PENDING_TERM_RE.search(text):
             raise RuntimeError(f"Waiting terminology placeholder in {target.name}; complete the term before validation")
         if target in scope:
-            calls, defined = author_notes(source.read_text(encoding="utf-8"))
-            if author_notes(text) != (calls, defined):
+            calls, defined = author_notes(source.read_text(encoding="utf-8"), terms)
+            if author_notes(text, terms) != (calls, defined):
                 raise RuntimeError(f"Author notes differ from the source in {target.name}: "
                                    f"source calls={sorted(calls.elements())} definitions={sorted(defined.elements())}")
             notes += sum(defined.values())
+        text = PLACEHOLDER_RE.sub(lambda match: " " * len(match.group()), text)
         prose = check_editorial_footnotes(text, target, terms, noted, definitions, references)
         if script and target in scope:
             check_verbatim(source.read_text(encoding="utf-8"), prose, script, target.name)
 
-    for identifier in sorted(noted | set(definitions) | set(references)):
+    for identifier in sorted({i for i in noted if terms[i]["body"]} | set(definitions) | set(references)):
         if definitions[identifier] != 1 or references[identifier] != 1:
             raise RuntimeError(f"Terminology note must be defined and called once in the book: {identifier}")
     print(f"translation-ok units={len(scope)}: present and non-empty, no waiting terms, "
           f"author notes kept={notes}" + (f", verbatim {script.title()} kept" if script else "") +
-          f", retained terms with a parenthetical and their note at first use={len(noted)}; meaning is not checked")
+          f", first uses with parenthetical and note={len(noted)}, later uses without parentheses; meaning is not checked")
     return 0
 
 
