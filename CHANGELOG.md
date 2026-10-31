@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The coordinator appends missing terms to `punctual-term-translation/results/requested-terms.md`.
+- Segment translators request a concept only when no ordinary target-language word carries its
+  full meaning in the paragraph; in doubt they request it.
 - Store schema 9: `reading_form` and `translation` may be null and `later_use` records whether
   later uses repeat the equivalent or keep the original alone; a record may hold only a note.
   Term IDs are the plain term slug, without a prefix or language; the validator recognizes a
@@ -11,7 +14,9 @@
   a term reads `term equivalent`. Rebuild an older store from `knowledge/knowledge.jsonl`.
 - Translators request every religious or technical concept without an approved record; later
   uses place the equivalent directly after the term. The validator collapses whitespace in
-  verbatim runs and ignores waiting placeholders outside the scope and term IDs inside note calls.
+  verbatim runs and ignores waiting placeholders outside the scope and term IDs inside note calls. In the target text it keeps letter diacritics, and an inflected
+  reading form of three letters or fewer counts only before its equivalent. A kept title is
+  written `_Title_`; terms inside it are not term uses.
 - Store schema 7 holds the dictionary and approved terms only. The `placements` table, the
   `place`, `check` and `migrate` commands and `first_expression` are removed; a store of another
   schema is rebuilt from `knowledge/knowledge.jsonl`, which no longer lists placements. `scan`

@@ -49,8 +49,9 @@ Every fresh agent starts without inherited history, with this file and the paths
    the [translation-reviewer skill](.agents/skills/translation-reviewer/SKILL.md) and the
    project, source and target locations; pass no translator reasoning or prior verdicts.
    Segments with term placeholders wait for their terms.
-3. Collect the missing terms from the translators' reports and give the list to the user;
-   the terminology area resolves it. When approved wording arrives, start a fresh segment
+3. Append the missing terms from the translators' reports, one `term (source-segment.md:line)`
+   per line, to `../punctual-term-translation/results/requested-terms.md`; the terminology
+   area resolves it. When approved wording arrives, start a fresh segment
    translator for each waiting segment to complete it, then its reviewer.
 4. Collect reviews; run the manifest's validator after final changes, with the unit range as
    scope (`--units 001-010`).
@@ -99,9 +100,10 @@ lines in the same order; do not start agents.
 
 ## Terminology
 
-Request every religious or technical concept that has no approved record, also when a direct
-expression seems possible; the user decides in the terminology area whether it is retained or
-translated directly. Existing approvals remain binding.
+Request a religious or technical concept that has no approved record unless an ordinary
+target-language word carries its full meaning in the paragraph: namaz is not generic prayer,
+but fikir, ilim and mertebe translate directly. Term means a word with technical details and its direct translation make no sense. Do not claim extraordinary amount of words are term just because they are arabic. The
+user decides requested terms in the terminology area. Existing approvals remain binding.
 Proposals, historical evidence and lexical matches do not approve wording.
 
 Use the approved reading form and note of the record. Inflect the retained term and its
@@ -133,11 +135,13 @@ is an occurrence of the term and is written in the same way. Wording and approva
   quotations in the project's `verbatim_script` exactly as the source prints them; a source
   written in that script is translated. Do not restore excluded publisher material or
   editorial references.
+- Write a book or treatise title kept in its original form in italics, `_Title_`; the
+  validator reads it as a name, not as a term use.
 - Check source readability/locators while translating. Resolve defects from visible source,
   references and context. Hold only unresolved passages; global blocking requires substantial
   unreadability or uncertain completeness.
 - Use bounded retrieval for large technical output.
-- When you (agentic-translator) asked to user about terms and he responded you to directly translate them (omitting punctual term-translation), you should translate it normally, considering the context. But you should add this terms to the sqlite db, without footnote. Also user can ask: "Do not translate, just use original"; in that case, use original, but add this term to the sqlite db and add note: "original should be used", no footnote no translation.
+- When you (agentic-coordinator) asked to user about terms and he responded you to directly translate them (omitting punctual term-translation), you should translate it normally, considering the context. But you should add this terms to the sqlite db, without footnote. Also user can ask: "Do not translate, just use original"; in that case, use original, but add this term to the sqlite db and add note: "original should be used", no footnote no translation.
 
 ## Ask first
 

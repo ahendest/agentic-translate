@@ -25,7 +25,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from knowledge import fold, load_project_terms, stem_pattern, unit_files, unit_number, unit_range  # noqa: E402
+from knowledge import APOSTROPHES, load_project_terms, unit_files, unit_number, unit_range  # noqa: E402
 
 PENDING_TERM_RE = re.compile(r"\{\{TERM:")
 # A waiting unit outside the scope keeps its placeholders; they are not term occurrences.
@@ -35,6 +35,8 @@ TERM_REFERENCE_RE = re.compile(r"\[\^([^\]\n]+)\]")
 # A retained term may be inflected freely; its first use requires the parenthetical equivalent.
 PARENTHETICAL_RE = re.compile(r" \([^()\n]+\)")
 NOTE_ID_RE = re.compile(r"\[\^([^\]\n]+)\]")
+# A kept book or treatise title is written in italics, `_Title_`; it is a name, not a term use.
+TITLE_RE = re.compile(r"(?<![\w_])_[^_\n]+_(?![\w_])")
 NOTE_DEFINITION_RE = re.compile(r"^\[\^([^\]\n]+)\]:", re.M)
 
 
@@ -72,14 +74,35 @@ def note_blocks(text: str, terms: dict):
         yield start, offset, identifier, "\n".join(body)
 
 
+def case_fold(text: str) -> str:
+    """Case- and apostrophe-insensitive text of the same length, so match offsets stay valid."""
+    return "".join(c.lower()[:1] for c in text.translate(APOSTROPHES))
+
+
+def reading_pattern(reading: str, gloss: str | None) -> str:
+    """A reading form in any inflection: each word may take any ending; letters keep their diacritics."""
+    words = [re.escape(word) for word in case_fold(reading).split()]
+    pattern = r"(?<![\w-])" + r"[\w-]*\s+".join(words) + r"[\w-]*"
+    # A form of three letters or fewer begins many other words (rabdă is not Rab): an inflected
+    # short form counts only before its equivalent, in parentheses or not.
+    if len(words) == 1 and len(reading) <= 3:
+        equivalent = case_fold((gloss or "").split()[0]) if gloss else ""
+        stem = re.escape(equivalent[:max(3, len(equivalent) - 2)])
+        after = r"\s+\(?" + stem if stem else r"(?!)"
+        return r"(?<![\w-])" + words[0] + r"(?:(?![\w])|[\w-]*(?=" + after + r"))"
+    return pattern
+
+
 def retained_occurrences(prose: str, terms: dict) -> list[tuple[int, int, str]]:
     """Each retained term in any inflection, longest reading form first, without nested matches; in text order."""
-    folded, spans = fold(prose), []
+    # Target letters stay distinct (răbdare is not Rab); only case and apostrophes are ignored.
+    folded, spans = case_fold(prose), []
     # Note calls such as `[^sunnet-i-seniye]` hold term IDs, not term uses.
     calls = [match.span() for match in NOTE_ID_RE.finditer(prose)]
+    calls += [match.span() for match in TITLE_RE.finditer(prose)]
     retained = {identifier: term for identifier, term in terms.items() if term["reading"]}
     for identifier, term in sorted(retained.items(), key=lambda item: -len(item[1]["reading"])):
-        for match in re.finditer(stem_pattern(term["reading"]), folded):
+        for match in re.finditer(reading_pattern(term["reading"], term["gloss"]), folded):
             # Apostrophe-linked source compounds are separate concepts.
             if prose[match.end():].startswith(("’", "'")):
                 continue

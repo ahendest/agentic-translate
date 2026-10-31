@@ -116,6 +116,22 @@ class ValidatorTests(unittest.TestCase):
             + '[^namaz-i-cuma]: Nota.\n')
         self.assertEqual(self.run_scope('001-002'), 0)
 
+    def test_target_letters_and_short_forms_do_not_match_other_words(self):
+        with self.store.write() as connection:
+            self.store.put_term(connection, {'id': 'rab', 'language': 'ro', 'source_form': 'Rab', 'reading_form': 'Rab',
+                                             'translation': 'Domnul', 'arabic': None, 'footnote': 'Nota.', 'sense': 'Lord',
+                                             'note': None, 'approval': 'Fixture', 'approved_at': '2026-10-30'})
+        self.save('translation/001-a.ro.md', FIRST.replace('începe', 'răbdare, rabdă, începe') )
+        self.save('translation/002-b.ro.md', SECOND.replace('urmează', 'și Rab (Domnul)[^rab] urmează') + '\n[^rab]: Nota.\n')
+        self.assertEqual(self.run_scope('001-002'), 0)
+
+    def test_italic_title_is_a_name_not_a_term_use(self):
+        self.save('translation/001-a.ro.md', FIRST.replace('începe', 'din tratatul „_Namaz-name_” începe'))
+        self.assertEqual(self.run_scope('001-002'), 0)
+        self.save('translation/001-a.ro.md', FIRST.replace('Namazul (rugăciunea)[^namaz] începe', 'Tratatul „Namaz-name” începe'))
+        with self.assertRaises(RuntimeError):
+            self.run_scope('001-002')
+
     def test_only_the_first_use_has_the_parenthetical(self):
         self.save('translation/001-a.ro.md', FIRST.replace('Namazul (rugăciunea)', 'Namazul'))
         with self.assertRaisesRegex(RuntimeError, 'Missing parenthetical equivalent at the first use of Namazul'):
