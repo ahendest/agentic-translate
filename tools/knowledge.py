@@ -336,7 +336,7 @@ class Knowledge:
                     if any(m.start()<b and m.end()>a for a,b in occupied): continue
                     occupied.append(m.span())
                     result.append({'id':row['id'],'term':row['source_form'],'text':original[m.start():m.end()],
-                                   'path':str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p),'line':text.count('\n',0,m.start())+1})
+                                   'path':p.relative_to(ROOT).as_posix() if p.is_relative_to(ROOT) else str(p),'line':text.count('\n',0,m.start())+1})
         return sorted(result,key=lambda hit:(hit['path'],hit['line'],hit['id']))
 
     def export_terms(self,output):

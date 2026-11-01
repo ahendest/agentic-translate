@@ -329,8 +329,8 @@ def write(epub, book_id, root=ROOT):
     outputs = {segments / name: text for name, text in files.items()}
     outputs[target / 'overview.md'] = overview(book, epub, book_id, files, skipped, defects)
     existing = set(segments.glob('*.md')) if segments.is_dir() else set()
-    changed = sorted(str(p.relative_to(root)) for p in existing - outputs.keys())
-    changed += sorted(str(p.relative_to(root)) for p, text in outputs.items()
+    changed = sorted(p.relative_to(root).as_posix() for p in existing - outputs.keys())
+    changed += sorted(p.relative_to(root).as_posix() for p, text in outputs.items()
                       if p.is_file() and p.read_text(encoding='utf-8') != text)
     if changed:
         raise ValueError('Prepared source differs from this EPUB; changing segmentation needs approval: ' + ', '.join(changed[:10]))
@@ -338,7 +338,7 @@ def write(epub, book_id, root=ROOT):
     for path, text in outputs.items():
         if not path.is_file():
             path.write_text(text, encoding='utf-8')
-    return {'book_id': book_id, 'overview': str((target / 'overview.md').relative_to(root)),
+    return {'book_id': book_id, 'overview': (target / 'overview.md').relative_to(root).as_posix(),
             'units': len(files), 'skipped': len(skipped), 'defects': len(set(defects))}
 
 

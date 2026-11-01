@@ -27,7 +27,7 @@ def local(value):
 
 
 def relative(path):
-    return str(path.resolve().relative_to(ROOT))
+    return path.resolve().relative_to(ROOT).as_posix()
 
 
 def load(path):

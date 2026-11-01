@@ -75,18 +75,18 @@ class KnowledgeTests(unittest.TestCase):
         exported=self.root/'exporting.jsonl'
         store=k.Knowledge(self.save('exporting.json',{'engine':'sqlite','path':str(self.root/'exporting.sqlite'),'export':str(exported)})); store.init()
         self.import_data(store)
-        self.assertEqual([json.loads(line)['id'] for line in exported.read_text().splitlines()],['namaz'])
+        self.assertEqual([json.loads(line)['id'] for line in exported.read_text(encoding='utf-8').splitlines()],['namaz'])
         with store.write(dry_run=True) as c: store.put_term(c,dict(self.term,translation='rugăciune rituală'))
-        self.assertEqual(json.loads(exported.read_text())['translation'],'rugăciune')
+        self.assertEqual(json.loads(exported.read_text(encoding='utf-8'))['translation'],'rugăciune')
         with store.write() as c: store.put_term(c,dict(self.term,translation='rugăciune rituală'))
-        self.assertEqual(json.loads(exported.read_text())['translation'],'rugăciune rituală')
+        self.assertEqual(json.loads(exported.read_text(encoding='utf-8'))['translation'],'rugăciune rituală')
         before=exported.read_bytes(); p=self.root/'lugat.sql'
         p.write_text("INSERT INTO db_lugat (id,indeks,kelime,kirpilmis,anlam) VALUES (1,'A','a','a','a');")
         store.import_lugat(p); self.assertEqual(exported.read_bytes(),before)
     def test_empty_store_never_replaces_populated_export(self):
         exported=self.root/'populated.jsonl'; exported.write_text('{"id":"kept"}\n')
         store=k.Knowledge(self.save('empty.json',{'engine':'sqlite','path':str(self.root/'empty.sqlite'),'export':str(exported)})); store.init()
-        store._refresh_export(exported); self.assertEqual(exported.read_text(),'{"id":"kept"}\n')
+        store._refresh_export(exported); self.assertEqual(exported.read_text(encoding='utf-8'),'{"id":"kept"}\n')
     def test_concurrent_writes_export_the_final_state(self):
         from concurrent.futures import ThreadPoolExecutor
         exported=self.root/'concurrent.jsonl'
@@ -96,7 +96,7 @@ class KnowledgeTests(unittest.TestCase):
             worker=k.Knowledge(config)
             with worker.write() as c: worker.put_term(c,dict(self.term,id=f'namaz-{n}'))
         with ThreadPoolExecutor(6) as pool: list(pool.map(write,range(12)))
-        self.assertEqual(len(exported.read_text().splitlines()),13)
+        self.assertEqual(len(exported.read_text(encoding='utf-8').splitlines()),13)
         self.assertFalse(exported.with_name(exported.name+'.tmp').exists())
     def adapter_project(self):
         return {'id':'ro-book','target_language':'ro','translation':str(self.root/'translation'),'knowledge':str(self.config)}
@@ -183,7 +183,7 @@ class KnowledgeTests(unittest.TestCase):
         other=k.Knowledge(self.save('config2.json',{'engine':'sqlite','path':str(self.root/'other.sqlite')})); other.init(); other.import_terms(out)
         second=self.root/'second.jsonl'; other.export_terms(second)
         self.assertEqual(out.read_bytes(),second.read_bytes())
-        self.assertEqual(json.loads(out.read_text()),self.term)
+        self.assertEqual(json.loads(out.read_text(encoding='utf-8')),self.term)
     def test_scope_mismatch_and_path_boundary(self):
         with self.assertRaises(k.KnowledgeError) as caught: self.store.scan(self.project,'005-006')
         self.assertEqual(caught.exception.code,'missing_scope')
