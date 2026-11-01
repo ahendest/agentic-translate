@@ -200,7 +200,7 @@ class Knowledge:
             return {'id':'store','unchanged':True}
         c=sqlite3.connect(self.db)
         c.execute('PRAGMA journal_mode=WAL')
-        try: c.executescript(Path(__file__).with_name('knowledge_schema.sql').read_text()); c.commit()
+        try: c.executescript(Path(__file__).with_name('knowledge_schema.sql').read_text(encoding='utf-8')); c.commit()
         except Exception:
             c.close(); self.db.unlink(missing_ok=True); raise
         finally: c.close()
@@ -416,4 +416,4 @@ def main(argv=None):
     except (OSError,sqlite3.Error) as e:
         print(dump({'ok':False,'items':[],'next_cursor':None,'warnings':[],'error':{'code':'integrity_or_connection','message':str(e)}})); return 4
 
-if __name__=='__main__': sys.exit(main())
+if __name__=='__main__': sys.stdout.reconfigure(encoding='utf-8'); sys.exit(main())

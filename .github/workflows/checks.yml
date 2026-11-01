@@ -2,18 +2,26 @@ name: checks
 on: [push, pull_request]
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        # Git Bash on Windows, as for a user's agent; setup-python provides `python` everywhere.
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Unit tests
-        run: env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools -p 'test_*.py'
+        run: env PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tools -p 'test_*.py'
       - name: Rebuild the store from text and audit it
         run: |
-          python3 -B tools/knowledge.py --config knowledge/config.json init
-          python3 -B tools/knowledge.py --config knowledge/config.json import-terms --input knowledge/knowledge.jsonl
-          python3 -B tools/knowledge.py --config knowledge/config.json import-lugat --input knowledge/sources/db_lugat.sql
+          python -B tools/knowledge.py --config knowledge/config.json init
+          python -B tools/knowledge.py --config knowledge/config.json import-terms --input knowledge/knowledge.jsonl
+          python -B tools/knowledge.py --config knowledge/config.json import-lugat --input knowledge/sources/db_lugat.sql
           git diff --exit-code knowledge/knowledge.jsonl
-          python3 -B tools/knowledge.py --config knowledge/config.json integrity
+          python -B tools/knowledge.py --config knowledge/config.json integrity

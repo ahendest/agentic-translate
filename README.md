@@ -1,8 +1,8 @@
 # Agentic translate
 
-This is the book translation part of the Risalero workshop. It translates Islamic books from an
-EPUB file into another language. AI agents do the translation and review it; you keep control of
-the religious and technical terms.
+This is the book translation part of the Risale translation workshop. It translates Islamic
+books from an EPUB file into another language. AI agents do the translation and review it; you
+keep control of the religious and technical terms.
 
 ## What you supply
 

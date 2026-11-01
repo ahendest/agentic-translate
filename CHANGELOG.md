@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The tools write their output as UTF-8 and read the store schema as UTF-8 on every system;
+  on Windows they failed on non-ASCII text in piped output. The checks run on Linux, Windows
+  and macOS.
 - The coordinator appends missing terms to `punctual-term-translation/results/requested-terms.md`.
 - Segment translators request a concept only when no ordinary target-language word carries its
   full meaning in the paragraph; in doubt they request it.
