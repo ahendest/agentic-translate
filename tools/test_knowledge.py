@@ -118,7 +118,7 @@ class KnowledgeTests(unittest.TestCase):
         self.import_data()
         (self.source.parent/'002-two.md').write_text('## text/two.xhtml\nNamaz.\n',encoding='utf-8')
         self.assertEqual({Path(hit['path']).name for hit in self.store.scan(self.project,'001-001')},{'001-one.md'})
-        self.assertEqual(self.store.scan(self.project)[-1]['path'],str(self.source.parent.relative_to(k.ROOT)/'002-two.md'))
+        self.assertEqual(self.store.scan(self.project)[-1]['path'],(self.source.parent.relative_to(k.ROOT)/'002-two.md').as_posix())
         single=self.save('single.json',{'id':'ro-book','target_language':'ro','prepared_source':str(self.source),'translation':str(self.root/'translation')})
         with self.assertRaises(k.KnowledgeError) as caught: self.store.scan(single)
         self.assertEqual(caught.exception.code,'missing_source')
