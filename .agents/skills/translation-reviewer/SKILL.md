@@ -26,6 +26,8 @@ or inherited conversation history.
 4. Correct confirmed source, grammar, idiom or coherence errors directly in the target file.
    Do not rewrite sound prose for personal style; length or repetition alone is not an error.
    After a repair, reread the whole target paragraph and compare its complete source unit.
+   A scope that names a word or phrase covers its whole sentence: correct there every
+   agreement or grammar error the changed words cause.
 5. Verify human suggestions against the source. Feedback authorizes the identified passages
    only. Locate a quoted passage in the source units before mapping it.
 6. Return missing terms to the coordinator and continue unaffected work. Do not change

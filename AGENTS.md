@@ -24,6 +24,8 @@ Run from this repository. Replace uppercase arguments with request values or ret
 The agent that receives the request coordinates. It runs the commands below, starts fresh
 agents and keeps only their short reports; it does not read or translate book text itself.
 Every fresh agent starts without inherited history, with this file and the paths it needs.
+When an agent is refused or stops before its report, start it once more with the same task
+in a shorter prompt of one unit; only a second refusal goes to the user.
 
 1. Prepare routes without loading book text:
 
