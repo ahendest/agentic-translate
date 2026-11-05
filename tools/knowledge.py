@@ -19,6 +19,8 @@ LANGUAGE = r'[a-z]{2,3}(?:-[a-z0-9]+)*'
 TERM_FIELDS = ('id','language','source_language','source_form','reading_form','translation','arabic','footnote','later_use','sense','note','approval','approved_at')
 UNIT = re.compile(r'(\d+)-')
 LISAN_BASE = 1000000
+LISAN_CONTINUED = re.compile(r'\(\s*تابع')
+LISAN_REPEAT = re.compile(r'^.*?\.{3,}\s*\.{3}\s*')
 LISAN_ENTRY = re.compile(r'(?m)^@\s*([^:\n]{1,60}?)\s*:\s*')
 
 class KnowledgeError(Exception):
@@ -156,7 +158,7 @@ def parse_lugat(text):
 
 def parse_lisan(directory):
     """Entries `@headword: text` of the Lisan al-Arab text files, in file order; a repeated file is read once."""
-    seen=set()
+    seen=set(); entries=[]
     for p in sorted(path(directory).glob('*.txt')):
         text=p.read_text(encoding='utf-8')
         if text in seen: continue
@@ -164,7 +166,12 @@ def parse_lisan(directory):
         starts=list(LISAN_ENTRY.finditer(text))
         for i,m in enumerate(starts):
             body=' '.join(text[m.end():starts[i+1].start() if i+1<len(starts) else len(text)].split())
-            if body: yield m[1].strip(),body
+            if not body: continue
+            if LISAN_CONTINUED.match(m[1]) and entries:
+                # A continued part repeats the root and its first line, then goes on with the entry before it.
+                entries[-1][1]+=' '+LISAN_REPEAT.sub('',body,count=1)
+            else: entries.append([m[1].strip(),body])
+    yield from map(tuple,entries)
 
 def required(record, fields):
     for field in fields:
@@ -335,9 +342,11 @@ class Knowledge:
         sha=hashlib.sha256(dump(entries).encode()).hexdigest()
         with self.write(export=False) as c:
             old=c.execute("SELECT value FROM meta WHERE key='lisan_sha256'").fetchone()
-            if old:
-                if old[0]==sha: return {'id':'lisan-al-arab','unchanged':True,'sha256':sha}
-                fail('import_conflict','Lisan al-Arab text changed; existing originals are protected')
+            if old and old[0]==sha: return {'id':'lisan-al-arab','unchanged':True,'sha256':sha}
+            # Downloaded dictionary data, not user data: a changed reading replaces it.
+            c.execute("DELETE FROM lugat_fts WHERE id IN (SELECT id FROM lugat WHERE dictionary='lisan-al-arab')")
+            c.execute("DELETE FROM lugat WHERE dictionary='lisan-al-arab'")
+            c.execute("DELETE FROM meta WHERE key IN ('lisan_sha256','lisan_count')")
             for n,(headword,body) in enumerate(entries,LISAN_BASE):
                 c.execute('INSERT INTO lugat VALUES (?,?,?,?,?,?,?)',(n,'lisan-al-arab',None,headword,None,body,key(headword)))
                 c.execute('INSERT INTO lugat_fts VALUES (?,?)',(n,key(headword+' '+body)))

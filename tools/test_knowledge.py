@@ -176,6 +176,11 @@ class KnowledgeTests(unittest.TestCase):
         self.assertEqual((hit['dictionary'],hit['match_type']),('lisan-al-arab','exact_form'))
         self.assertEqual(self.store.lugat_get(hit['id'])['anlam'],'الصَّلاةُ: الدُّعاءُ والاستغفار.')
         self.assertEqual([r['kelime'] for r in self.store.lugat_search('المصدر')],['زكا'])
+        # A continued part joins the entry before it; a changed reading replaces only this dictionary.
+        (folder/'lisan-02.txt').write_text('@(تابع... 1): زكا: الزَّكاةُ: الـمَصدر.... ... وزكا الزرع.\n',encoding='utf-8')
+        self.assertEqual(self.store.import_lisan(folder)['count'],2)
+        self.assertEqual(self.store.lugat_get(self.store.lugat_search('زكا')[0]['id'])['anlam'],'الزَّكاةُ: الـمَصدر. وزكا الزرع.')
+        self.assertEqual(self.store.integrity()['dictionaries'],{'lisan-al-arab':2})
     def test_bak_references_name_their_entries(self):
         p=self.root/'refs.sql'
         p.write_text("INSERT INTO db_lugat (id,indeks,kelime,kirpilmis,anlam) VALUES (1,'A','A','a','Bak: B'),(2,'B','B','b','x'),(3,'C','C','c','Bak: missing'),(5,'B','B','b','duplicate');")

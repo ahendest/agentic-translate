@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `import-lisan` joins each continued part `(تابع...)` to the entry it continues, so every
+  Lisan al-Arab entry has its root as headword; a changed reading replaces the Lisan data.
 - CI pins `actions/checkout` v7.0.1 and `actions/setup-python` v7.1.0 by commit (Node.js 24),
   with a read-only token that the checkout does not keep.
 - `word_prefixes` in `knowledge/config.json` lists, per source language, the prefixes attached
