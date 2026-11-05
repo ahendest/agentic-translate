@@ -1,5 +1,7 @@
 name: checks
 on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
   checks:
     strategy:
@@ -12,8 +14,10 @@ jobs:
         # Git Bash on Windows, as for a user's agent; setup-python provides `python` everywhere.
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
       - name: Unit tests

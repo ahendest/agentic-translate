@@ -1,1 +1,1 @@
-{"engine":"sqlite","path":"knowledge/knowledge.sqlite","export":"knowledge/knowledge.jsonl","source_languages":["ar","tr"]}
+{"engine":"sqlite","path":"knowledge/knowledge.sqlite","export":"knowledge/knowledge.jsonl","source_languages":["ar","tr"],"word_prefixes":{"ar":["ال","لل","وال","فال","بال","كال","ولل","فلل","وبال","فبال","وكال","و","ف","ب","ك","ل","وب","فب","وك","ول","فل"]}}

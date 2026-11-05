@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- CI pins `actions/checkout` v7.0.1 and `actions/setup-python` v7.1.0 by commit (Node.js 24),
+  with a read-only token that the checkout does not keep.
+- `word_prefixes` in `knowledge/config.json` lists, per source language, the prefixes attached
+  to the front of a word. Term lookup, `scan` and `term-request` accept them, so a record of an
+  Arabic word also finds the word with an attached article or particle.
 - Each user's term store is their own and starts empty. `knowledge/knowledge.jsonl` is a local,
   untracked text copy and backup; `knowledge/sources/legacy-records.json` is no longer shipped.
 - Store schema 11: `lugat` names each entry's `dictionary`. `import-lisan` imports the Lisan

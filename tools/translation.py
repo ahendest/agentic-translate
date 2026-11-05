@@ -135,9 +135,10 @@ def term_request(project_path, term, location):
     while end < len(lines) and lines[end].strip() and not lines[end].startswith('#'):
         end += 1
     require(term.strip(), 'Term must not be empty')
-    require(re.search(knowledge.stem_pattern(term), knowledge.fold('\n'.join(lines[start:end]))),
-            'Term is absent from the located paragraph')
     store = knowledge.Knowledge(local(data['knowledge']))
+    require(re.search(knowledge.stem_pattern(term, store.prefixes(data['source_language'])),
+                      knowledge.fold('\n'.join(lines[start:end]))),
+            'Term is absent from the located paragraph')
     found = store.find(term, data['target_language'], data['source_language'])
     request_text = term + ' (' + relative(path) + ':' + str(line) + ')'
     if not found:

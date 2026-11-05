@@ -58,6 +58,17 @@ class KnowledgeTests(unittest.TestCase):
         self.source.write_text('## text/one.xhtml\nnamaz صلاة\n',encoding='utf-8')
         self.assertEqual({hit['id'] for hit in self.store.scan(arabic)},{'salat'})
         self.assertEqual(set(k.load_project_terms(dict(self.adapter_project(),source_language='ar'),k.ROOT)),{'salat'})
+    def test_configured_prefixes_attach_only_in_their_source_language(self):
+        self.save('config.json',{'engine':'sqlite','path':str(self.root/'store.sqlite'),'word_prefixes':{'ar':['ال','وال','و']}})
+        store=k.Knowledge(self.config)
+        self.terms.append(dict(self.term,id='salat',source_language='ar',source_form='صلاة',reading_form='salat'))
+        self.import_data(store)
+        self.assertEqual([(r['id'],r['match_type']) for r in store.find('الصلاة','ro','ar')],[('salat','inflection')])
+        self.assertEqual([r['id'] for r in store.find('وَالصَّلَاةِ','ro','ar')],['salat'])
+        self.assertEqual([r['id'] for r in store.find('انامازا','ro','tr')],[])
+        arabic=dict(json.loads(self.project.read_text(encoding='utf-8')),source_language='ar')
+        self.source.write_text('## text/one.xhtml\nأقيموا الصلاة ووالصلاة\n',encoding='utf-8')
+        self.assertEqual([hit['text'] for hit in store.scan(arabic)],['الصلاة'])
     def test_find_matches_the_original_and_its_inflections_only(self):
         self.terms.append(dict(self.term,id='nefs-i-emmare',source_form='nefs-i emmâre',reading_form='nefs poruncitor'))
         self.terms.append(dict(self.term,id='nefs',source_form='nefs',reading_form='nefs'))

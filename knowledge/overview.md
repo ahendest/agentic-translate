@@ -25,7 +25,10 @@ refuses a book of another source language.
 
 Inflections are not stored. Tools recognize a term by its words in any inflection: the source
 by `source_form`, the book by `reading_form`. Matching ignores case, diacritics, vowel signs
-(nonspacing marks such as Arabic harakat) and the apostrophe form (’ or '). `terms find` marks a
+(nonspacing marks such as Arabic harakat) and the apostrophe form (’ or '). In the source, the
+first word may also carry one of the prefixes that `word_prefixes` in `knowledge/config.json`
+lists for the source language, such as an attached article; a record therefore holds the form
+without them. `terms find` marks a
 word-prefix hit as `inflection` and an approved term inside a compound request as
 `contained`; both are candidates for a context decision, not an approval of the requested word.
 

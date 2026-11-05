@@ -83,7 +83,8 @@ lines in the same order; do not start agents.
    python3 -B tools/translation.py term-request --project PROJECT_JSON --term "TERM" --at "SOURCE_SEGMENT.md:LINE"
    ```
 
-   Apply each matching approved record: its reading form, translation and footnote. A
+   Write TERM without the attached prefixes that `word_prefixes` in `knowledge/config.json`
+   lists for the source language. Apply each matching approved record: its reading form, translation and footnote. A
    record's note guides context-dependent terms; choose by sense and do not force one
    rendering. `candidates` are approved terms whose original is only a word prefix of the
    request or a part of a compound request: apply one only when the paragraph shows a derived or inflected word of that

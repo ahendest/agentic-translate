@@ -70,11 +70,14 @@ def bare(text):
     """Folded text without nonspacing marks, for comparing forms (not for match offsets)."""
     return ''.join(c for c in fold(text) if unicodedata.category(c)!='Mn')
 
-def stem_pattern(term):
-    """A term in any inflection: each folded word may take any ending, and vowel signs are optional."""
+def stem_pattern(term,prefixes=()):
+    """A term in any inflection: each folded word may take any ending, the first word one of the
+    source language's attached prefixes, and vowel signs are optional."""
     m=marks()
-    words=[''.join(re.escape(c)+f'[{m}]*' for c in w) for w in bare(term).split()]
-    return r'(?<![\w-])'+rf'[\w{m}-]*\s+'.join(words)+rf'[\w{m}-]*'
+    letters=lambda w:''.join(re.escape(c)+f'[{m}]*' for c in w)
+    words=[letters(w) for w in bare(term).split()]
+    front='(?:'+'|'.join(letters(p) for p in sorted({bare(p) for p in prefixes},key=len,reverse=True) if p)+')?' if prefixes else ''
+    return r'(?<![\w-])'+front+rf'[\w{m}-]*\s+'.join(words)+rf'[\w{m}-]*'
 
 def unit_files(manifest):
     """The prepared source units of a book in book order: the nonempty Markdown files, by name."""
@@ -192,6 +195,10 @@ class Knowledge:
         required(self.config,['path'])
         self.db = path(self.config['path'],write=True)
 
+    def prefixes(self,source_language):
+        """Prefixes that the source language attaches to the front of a word (config `word_prefixes`)."""
+        return self.config.get('word_prefixes',{}).get(source_language,[])
+
     def read(self):
         if not self.db.is_file(): fail('missing_store','Knowledge database does not exist',4)
         c=sqlite3.connect(self.db.as_uri()+'?mode=ro',uri=True)
@@ -301,7 +308,7 @@ class Knowledge:
         Only an exact hit is reused: a prefix or a part can be another concept, so the others are candidates."""
         needle=' '.join(fold(query).split())
         def kind(form):
-            pattern=stem_pattern(form)
+            pattern=stem_pattern(form,self.prefixes(source_language))
             return 'exact' if bare(form).split()==bare(query).split() else 'inflection' if re.fullmatch(pattern,needle) else 'contained' if re.search(pattern,needle) else None
         with contextlib.closing(self.read()) as c:
             rows=[self._record(c,ident) for ident in self._ids(c,language,source_language)]
@@ -364,11 +371,11 @@ class Knowledge:
         if not files: fail('missing_scope','No source units in the requested range',2)
         with contextlib.closing(self.read()) as c:
             terms=sorted((self._record(c,ident) for ident in self._ids(c,manifest['target_language'],manifest['source_language'])),key=lambda r:(-len(r['source_form']),r['id']))
-        result=[]
+        result=[]; prefixes=self.prefixes(manifest['source_language'])
         for p in files:
             original=p.read_text(encoding='utf-8'); text=fold(original); occupied=[]
             for row in terms:
-                for m in re.finditer(stem_pattern(row['source_form']),text):
+                for m in re.finditer(stem_pattern(row['source_form'],prefixes),text):
                     if any(m.start()<b and m.end()>a for a,b in occupied): continue
                     occupied.append(m.span())
                     result.append({'id':row['id'],'term':row['source_form'],'text':original[m.start():m.end()],
