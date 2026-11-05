@@ -7,16 +7,17 @@ auditing and rebuild.
 
 ## Tables
 
-Schema 8. Each table has one writer.
+Schema 11. Each table has one writer. Each user's store is their own: it starts without terms.
 
 | Table | Content | Writer |
 | --- | --- | --- |
-| `lugat`, `lugat_fts` | Source dictionary and its search index | Import only, from `sources/db_lugat.sql` |
-| `terms` | One approved term: `language`, `source_form` (as in the source), `reading_form` (as printed in the book; null: only the equivalent is written), `translation` (the equivalent; null: the original stays alone), `arabic`, `footnote` (null: no note), `later_use` (`equivalent` or `original`: what later uses write), `sense`, optional `note`, `approval`, `approved_at` | punctual-term-translation, after human approval |
+| `lugat`, `lugat_fts` | Source dictionaries and their search index; `dictionary` names each entry's dictionary | Import only: `lugat` from `sources/db_lugat.sql`, `lisan-al-arab` from the Lisan al-Arab text that `workshop.py` downloads (headwords are Arabic roots) |
+| `terms` | One approved term: `language` (target), `source_language`, `source_form` (as in the source), `reading_form` (as printed in the book; null: only the equivalent is written), `translation` (the equivalent; null: the original stays alone), `arabic`, `footnote` (null: no note), `later_use` (`equivalent` or `original`: what later uses write), `sense`, optional `note`, `approval`, `approved_at` | punctual-term-translation, after human approval |
 
 Term IDs are `term-<language>-<slug>` and are also the footnote IDs in book text. A source
 form without Latin letters or digits gets `u` and a hash of its folded form as slug. Queries
-are scoped by the project's target language: one language never sees another's wording.
+are scoped by the project's target and source language: a book never sees wording approved for
+another target language or for books of another source language.
 `note` guides translators for context-dependent terms; it does not force one rendering.
 
 `knowledge/config.json` lists the accepted source languages in `source_languages`; `prepare`
@@ -28,9 +29,8 @@ by `source_form`, the book by `reading_form`. Matching ignores case, diacritics,
 word-prefix hit as `inflection` and an approved term inside a compound request as
 `contained`; both are candidates for a context decision, not an approval of the requested word.
 
-Every term write rewrites `knowledge/knowledge.jsonl`, one approved term per line. It is the
-tracked text copy; the SQLite file is not tracked. `knowledge/sources/legacy-records.json`
-preserves the user-supplied terminology files that the first ten approvals came from.
+Every term write rewrites `knowledge/knowledge.jsonl`, one approved term per line: the user's
+local text copy and backup. Git tracks neither it nor the SQLite file.
 
 ## First-use notes
 
@@ -47,16 +47,15 @@ the note's place and wording.
 ## Audit
 
 Open the store read-only; never edit it by hand, because direct edits skip validation and
-the text export. Changes to approved terminology are visible in Git history:
+the text export. Each record keeps the user's approval text and date.
 
 ```bash
-git log -p knowledge/knowledge.jsonl
 sqlite3 -readonly knowledge/knowledge.sqlite
 ```
 
 ```sql
 .mode box
-SELECT id, reading_form, translation, arabic, footnote FROM terms WHERE language = 'LANG';
+SELECT id, reading_form, translation, arabic, footnote FROM terms WHERE language = 'LANG' AND source_language = 'SOURCE_LANG';
 SELECT id, sense FROM terms WHERE sense LIKE '%WORD%';
 ```
 
@@ -67,8 +66,8 @@ with `--limit 1–20` and `--cursor`.
 
 ```bash
 python3 -B tools/knowledge.py --config knowledge/config.json integrity
-python3 -B tools/knowledge.py --config knowledge/config.json terms list --language LANG
-python3 -B tools/knowledge.py --config knowledge/config.json terms find --query "TEXT" --language LANG
+python3 -B tools/knowledge.py --config knowledge/config.json terms list --language LANG --source-language SOURCE_LANG
+python3 -B tools/knowledge.py --config knowledge/config.json terms find --query "TEXT" --language LANG --source-language SOURCE_LANG
 python3 -B tools/knowledge.py --config knowledge/config.json terms get --id TERM_ID
 python3 -B tools/knowledge.py --config knowledge/config.json scan --project PROJECT_JSON --units 001-010
 python3 -B tools/knowledge.py --config knowledge/config.json lugat search --query "TEXT"
@@ -81,13 +80,17 @@ entries explain source meaning; they do not approve target wording.
 
 ## Rebuild
 
-A fresh clone rebuilds the store from text. The rebuild leaves `knowledge.jsonl` unchanged.
+The workshop's `workshop.py` builds the store: empty terms, or the terms of the local text
+copy when it exists, and both dictionaries. By hand:
 
 ```bash
 python3 -B tools/knowledge.py --config knowledge/config.json init
 python3 -B tools/knowledge.py --config knowledge/config.json import-terms --input knowledge/knowledge.jsonl
 python3 -B tools/knowledge.py --config knowledge/config.json import-lugat --input knowledge/sources/db_lugat.sql
+python3 -B tools/knowledge.py --config knowledge/config.json import-lisan --input knowledge/sources/downloads/lisan-al-arab
 ```
+
+Run `import-terms` only when the text copy exists; the rebuild leaves it unchanged.
 
 Import requires an empty terms table and grants no new approval. `export-terms --output PATH`
 writes the same text copy to another location. A damaged store, or a store of another schema

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Each user's term store is their own and starts empty. `knowledge/knowledge.jsonl` is a local,
+  untracked text copy and backup; `knowledge/sources/legacy-records.json` is no longer shipped.
+- Store schema 11: `lugat` names each entry's `dictionary`. `import-lisan` imports the Lisan
+  al-Arab text (Arabic, by root) that the workshop downloads; `lugat search` and `lugat get`
+  return the dictionary name; `integrity` counts entries per dictionary. Search ignores tatweel.
+- Store schema 10: every term records its `source_language`. Lookups, `scan` and the validator
+  use only records of the book's source language, so an Arabic book no longer receives wording
+  approved for Turkish books. `terms find` needs `--source-language`; `terms list` accepts it.
+  The existing records are from Turkish books and carry `tr`. Rebuild an older store from
+  `knowledge/knowledge.jsonl` (the workshop's `workshop.py` does this).
+- Agent instructions carry no source- or target-language example words; only the
+  terminology area writes terms.
 - The tools write their output as UTF-8 and read the store schema as UTF-8 on every system;
   on Windows they failed on non-ASCII text in piped output. The checks run on Linux, Windows
   and macOS. Paths in tool output and project files use `/` on every system.

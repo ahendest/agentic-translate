@@ -49,7 +49,7 @@ class TranslationTests(unittest.TestCase):
         return t.prepare(t.relative(self.source), 'tr', 'ro', **kwargs)
 
     def term(self, **changes):
-        record = {'id': 'namaz', 'language': 'ro', 'source_form': 'namaz', 'reading_form': 'namaz', 'translation': 'rugăciune rituală',
+        record = {'id': 'namaz', 'language': 'ro', 'source_language': 'tr', 'source_form': 'namaz', 'reading_form': 'namaz', 'translation': 'rugăciune rituală',
                   'arabic': 'صَلَاة', 'footnote': 'Exact Romanian note\nwith Unicode: ăîșț and صَلَاة.',
                   'sense': 'Islamic ritual prayer', 'note': None, 'approval': 'Exact fixture wording',
                   'approved_at': '2026-10-24'}

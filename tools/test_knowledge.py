@@ -18,8 +18,8 @@ class KnowledgeTests(unittest.TestCase):
         source=self.root/'source'; source.mkdir()
         self.source=source/'001-one.md'
         self.source.write_text('## text/one.xhtml\nNamaz ve nefs.\n\nNefs-i emmâre ve nefs.\n',encoding='utf-8')
-        self.project=self.save('project.json',{'id':'ro-book','target_language':'ro','prepared_source':str(source),'translation':str(self.root/'translation')})
-        self.term={'id':'namaz','language':'ro','source_form':'namaz','reading_form':'namaz','translation':'rugăciune','arabic':'صَلَاة',
+        self.project=self.save('project.json',{'id':'ro-book','source_language':'tr','target_language':'ro','prepared_source':str(source),'translation':str(self.root/'translation')})
+        self.term={'id':'namaz','language':'ro','source_language':'tr','source_form':'namaz','reading_form':'namaz','translation':'rugăciune','arabic':'صَلَاة',
                    'footnote':'Text exact\ncu „Unicode” şi نَفْس.','later_use':'equivalent','sense':'ritual prayer','note':None,
                    'approval':'User-supplied exact text','approved_at':'2026-10-24'}
         self.terms=[self.term]
@@ -42,31 +42,43 @@ class KnowledgeTests(unittest.TestCase):
     def test_languages_are_isolated_and_listed(self):
         self.terms.append(dict(self.term,id='fr-namaz',language='fr',translation='prière',footnote='Note française.'))
         self.import_data()
-        self.assertEqual([r['id'] for r in self.store.find('namaz','ro')],['namaz'])
-        self.assertEqual([r['id'] for r in self.store.find('namaz','fr')],['fr-namaz'])
+        self.assertEqual([r['id'] for r in self.store.find('namaz','ro','tr')],['namaz'])
+        self.assertEqual([r['id'] for r in self.store.find('namaz','fr','tr')],['fr-namaz'])
         self.assertEqual({hit['id'] for hit in self.store.scan(self.project)},{'namaz'})
         self.assertEqual([(r['id'],r['translation'],r['footnote']) for r in self.store.terms_list('fr')],[('fr-namaz','prière','Note française.')])
+    def test_source_languages_are_isolated(self):
+        # A record approved for Turkish books never serves an Arabic book of the same target language.
+        self.terms.append(dict(self.term,id='salat',source_language='ar',source_form='صلاة',reading_form='salat'))
+        self.import_data()
+        self.assertEqual([r['id'] for r in self.store.find('namaz','ro','ar')],[])
+        self.assertEqual([r['id'] for r in self.store.find('صلاة','ro','ar')],['salat'])
+        self.assertEqual([r['id'] for r in self.store.terms_list('ro','tr')],['namaz'])
+        self.assertEqual(len(self.store.terms_list('ro')),2)
+        arabic=dict(json.loads(self.project.read_text(encoding='utf-8')),source_language='ar')
+        self.source.write_text('## text/one.xhtml\nnamaz صلاة\n',encoding='utf-8')
+        self.assertEqual({hit['id'] for hit in self.store.scan(arabic)},{'salat'})
+        self.assertEqual(set(k.load_project_terms(dict(self.adapter_project(),source_language='ar'),k.ROOT)),{'salat'})
     def test_find_matches_the_original_and_its_inflections_only(self):
         self.terms.append(dict(self.term,id='nefs-i-emmare',source_form='nefs-i emmâre',reading_form='nefs poruncitor'))
         self.terms.append(dict(self.term,id='nefs',source_form='nefs',reading_form='nefs'))
         self.import_data()
-        self.assertEqual([(r['id'],r['match_type']) for r in self.store.find('NAMAZA','ro')],[('namaz','inflection')])
-        self.assertEqual([(r['id'],r['match_type']) for r in self.store.find('Nefs-i emmâre','ro')],[('nefs-i-emmare','exact'),('nefs','contained')])
-        self.assertEqual([r['id'] for r in self.store.find('nefsim','ro')],['nefs'])
+        self.assertEqual([(r['id'],r['match_type']) for r in self.store.find('NAMAZA','ro','tr')],[('namaz','inflection')])
+        self.assertEqual([(r['id'],r['match_type']) for r in self.store.find('Nefs-i emmâre','ro','tr')],[('nefs-i-emmare','exact'),('nefs','contained')])
+        self.assertEqual([r['id'] for r in self.store.find('nefsim','ro','tr')],['nefs'])
         # An approved term inside a compound is a candidate too.
-        self.assertEqual([(r['id'],r['match_type']) for r in self.store.find('namaz kılmak','ro')],[('namaz','contained')])
-        self.assertEqual([(r['id'],r['match_type']) for r in self.store.find('seyahat-ı nefsiye','ro')],[('nefs','contained')])
+        self.assertEqual([(r['id'],r['match_type']) for r in self.store.find('namaz kılmak','ro','tr')],[('namaz','contained')])
+        self.assertEqual([(r['id'],r['match_type']) for r in self.store.find('seyahat-ı nefsiye','ro','tr')],[('nefs','contained')])
         self.assertEqual(k.fold('Mün’im'),k.fold("Mün'im"))
         for query in ('ritual','nam','" OR missing *',''):
-            self.assertEqual(self.store.find(query,'ro'),[])
+            self.assertEqual(self.store.find(query,'ro','tr'),[])
     def test_prefix_of_another_word_is_only_an_inflection_candidate(self):
         self.terms.append(dict(self.term,id='hak',source_form='hak',reading_form='hak'))
         self.import_data()
-        self.assertEqual([(r['id'],r['match_type']) for r in self.store.find('hakikat','ro')],[('hak','inflection')])
-        self.assertEqual([(r['id'],r['match_type']) for r in self.store.find('Hak','ro')],[('hak','exact')])
+        self.assertEqual([(r['id'],r['match_type']) for r in self.store.find('hakikat','ro','tr')],[('hak','inflection')])
+        self.assertEqual([(r['id'],r['match_type']) for r in self.store.find('Hak','ro','tr')],[('hak','exact')])
     def test_vowel_signs_do_not_change_a_form(self):
         with self.store.write() as c: self.store.put_term(c,dict(self.term,id='rahma',source_form='رحمة'))
-        self.assertEqual([(r['id'],r['match_type']) for r in self.store.find('رَحْمَةٌ','ro')],[('rahma','exact')])
+        self.assertEqual([(r['id'],r['match_type']) for r in self.store.find('رَحْمَةٌ','ro','tr')],[('rahma','exact')])
     def test_other_schema_asks_for_a_rebuild(self):
         with self.store.write(export=False) as c: c.execute("UPDATE meta SET value='6' WHERE key='schema_version'")
         with self.assertRaisesRegex(k.KnowledgeError,'rebuild the store') as caught: self.store.integrity()
@@ -99,7 +111,7 @@ class KnowledgeTests(unittest.TestCase):
         self.assertEqual(len(exported.read_text(encoding='utf-8').splitlines()),13)
         self.assertFalse(exported.with_name(exported.name+'.tmp').exists())
     def adapter_project(self):
-        return {'id':'ro-book','target_language':'ro','translation':str(self.root/'translation'),'knowledge':str(self.config)}
+        return {'id':'ro-book','source_language':'tr','target_language':'ro','translation':str(self.root/'translation'),'knowledge':str(self.config)}
     def test_validator_adapter_exact_note_and_reading_form(self):
         self.term['reading_form']='Namaz'
         self.terms.append(dict(self.term,id='fr-namaz',language='fr'))
@@ -119,7 +131,7 @@ class KnowledgeTests(unittest.TestCase):
         (self.source.parent/'002-two.md').write_text('## text/two.xhtml\nNamaz.\n',encoding='utf-8')
         self.assertEqual({Path(hit['path']).name for hit in self.store.scan(self.project,'001-001')},{'001-one.md'})
         self.assertEqual(self.store.scan(self.project)[-1]['path'],(self.source.parent.relative_to(k.ROOT)/'002-two.md').as_posix())
-        single=self.save('single.json',{'id':'ro-book','target_language':'ro','prepared_source':str(self.source),'translation':str(self.root/'translation')})
+        single=self.save('single.json',{'id':'ro-book','source_language':'tr','target_language':'ro','prepared_source':str(self.source),'translation':str(self.root/'translation')})
         with self.assertRaises(k.KnowledgeError) as caught: self.store.scan(single)
         self.assertEqual(caught.exception.code,'missing_source')
     def test_new_database_wal(self):
@@ -143,6 +155,16 @@ class KnowledgeTests(unittest.TestCase):
         p.write_text(text.replace('it','that'),encoding='utf-8')
         with self.assertRaises(k.KnowledgeError) as caught: self.store.import_lugat(p)
         self.assertEqual(caught.exception.code,'import_conflict')
+    def test_lisan_import_reads_entries_once(self):
+        folder=self.root/'lisan'; folder.mkdir()
+        text='@ صلا: الصَّلاةُ: الدُّعاءُ\nوالاستغفار.\n@زكا: الزَّكاةُ: الـمَصدر.\n'
+        (folder/'lisan-01.txt').write_text(text,encoding='utf-8'); (folder/'lisan-02.txt').write_text(text,encoding='utf-8')
+        self.assertEqual(self.store.import_lisan(folder)['count'],2)
+        self.assertTrue(self.store.import_lisan(folder)['unchanged'])
+        hit=self.store.lugat_search('صلا')[0]
+        self.assertEqual((hit['dictionary'],hit['match_type']),('lisan-al-arab','exact_form'))
+        self.assertEqual(self.store.lugat_get(hit['id'])['anlam'],'الصَّلاةُ: الدُّعاءُ والاستغفار.')
+        self.assertEqual([r['kelime'] for r in self.store.lugat_search('المصدر')],['زكا'])
     def test_bak_references_name_their_entries(self):
         p=self.root/'refs.sql'
         p.write_text("INSERT INTO db_lugat (id,indeks,kelime,kirpilmis,anlam) VALUES (1,'A','A','a','Bak: B'),(2,'B','B','b','x'),(3,'C','C','c','Bak: missing'),(5,'B','B','b','duplicate');")

@@ -13,3 +13,9 @@ __pycache__/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+*.sqlite.old-*
+
+# Downloaded dictionaries and the local text copy of your own approved terms
+/knowledge/sources/downloads/
+/knowledge/knowledge.jsonl
+/knowledge/sources/legacy-records.json

@@ -7,14 +7,13 @@ to these instructions.
 
 ## Voice
 
-This instruction tells you about only the nuance and style of writing not how to translate. Write as the author wrote. Keep the original
-author's nuance, style of writing, register, rhythm, tone and voice.
+Write as the author wrote: keep the author's nuance, register, rhythm, tone and voice. This
+section governs style only, not terminology.
 
 ## Workflow
 
-Require source language, target language and an existing EPUB file:
-`çeviri istegi, kaynak dil: tr, hedef dil: ro, kitabin directory'si: path/book.epub`
-Ask for missing fields. The source language must be one of `source_languages` in
+Require the source language, the target language and an existing EPUB file; ask for missing
+fields. The source language must be one of `source_languages` in
 `knowledge/config.json`; the target language is free. The supplied EPUB is the only source of
 truth; use no other edition unless the user names it. Derive the book ID from the filename.
 Without narrower scope, proceed through the book in order, preserving accepted translation.
@@ -103,18 +102,18 @@ lines in the same order; do not start agents.
 ## Terminology
 
 Request a religious or technical concept that has no approved record unless an ordinary
-target-language word carries its full meaning in the paragraph: namaz is not generic prayer,
-but fikir, ilim and mertebe translate directly. Term means a word with technical details and its direct translation make no sense. Do not claim extraordinary amount of words are term just because they are arabic. The
-user decides requested terms in the terminology area. Existing approvals remain binding.
-Proposals, historical evidence and lexical matches do not approve wording.
+target-language word carries its full meaning in the paragraph: the name of a ritual act of
+worship is not a generic word, but common words of thought or knowledge translate directly.
+Arabic origin alone does not make a word a term. The user decides requested terms in the
+terminology area. Existing approvals remain binding. Proposals, historical evidence and
+lexical matches do not approve wording.
 
 Use the approved reading form and note of the record. Inflect the retained term and its
 equivalent as the sentence requires; do not keep the original form blindly. At the first use
-in the book write `term (equivalent)[^TERM_ID]` and define the exact note in the same unit;
-at every later use place the equivalent directly after the term, as an apposition, for example
-`Rahman (Cel Milostiv)[^rahman]`, later `Rahman Cel Milostiv`. The
-translation is made in book order, so the earlier translated units show whether the note
-already exists.
+in the book write `term (equivalent)[^TERM_ID]` and define the exact note in the same unit; at
+every later use place the equivalent directly after the term, as an apposition (`term
+equivalent`). The translation is made in book order, so the earlier translated units show
+whether the note already exists.
 
 A record may lack parts by the user's decision; apply it as stored:
 
@@ -124,10 +123,10 @@ A record may lack parts by the user's decision; apply it as stored:
 - `later_use: original`: the first use reads `term (equivalent)`, later uses the term alone;
 - only a note: translate by meaning as the note says.
 
-Derived words, plurals and spelling variants of an approved term (rahmâniye of Rahmân,
-nüfûs-u emmâre of nefs-i emmâre) follow that term: translate them in harmony with its approved
-equivalent, without a separate term request. If you keep such a word in its original form, it
-is an occurrence of the term and is written in the same way. Wording and approval belong to punctual-term-translation.
+Derived words, plurals and spelling variants of an approved term follow that term: translate
+them in harmony with its approved equivalent, without a separate term request. If you keep
+such a word in its original form, it is an occurrence of the term and is written in the same
+way. Wording and approval belong to punctual-term-translation.
 
 ## Always do
 
@@ -143,7 +142,8 @@ is an occurrence of the term and is written in the same way. Wording and approva
   references and context. Hold only unresolved passages; global blocking requires substantial
   unreadability or uncertain completeness.
 - Use bounded retrieval for large technical output.
-- When you (agentic-coordinator) asked to user about terms and he responded you to directly translate them (omitting punctual term-translation), you should translate it normally, considering the context. But you should add this terms to the sqlite db, without footnote. Also user can ask: "Do not translate, just use original"; in that case, use original, but add this term to the sqlite db and add note: "original should be used", no footnote no translation.
+- Only the terminology area writes terms. Add a user's own decision about a term, such as
+  "translate by meaning" or "keep the original", to its request line as `user: DECISION`.
 
 ## Ask first
 
@@ -164,16 +164,10 @@ is an occurrence of the term and is written in the same way. Wording and approva
 
 ```bash
 env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools -p 'test_*.py'
-python3 -B tools/knowledge.py --config knowledge/config.json terms list --language ro
+python3 -B tools/knowledge.py --config knowledge/config.json integrity
 ```
 
 Run affected book validators when their code/inputs change; do not build publications for maintenance.
 
-A fresh clone has no store. Rebuild it from the tracked text before any other command; the
-rebuild leaves `knowledge/knowledge.jsonl` unchanged:
-
-```bash
-python3 -B tools/knowledge.py --config knowledge/config.json init
-python3 -B tools/knowledge.py --config knowledge/config.json import-terms --input knowledge/knowledge.jsonl
-python3 -B tools/knowledge.py --config knowledge/config.json import-lugat --input knowledge/sources/db_lugat.sql
-```
+A fresh clone has no store; the workshop's `workshop.py` builds it
+([Rebuild](knowledge/overview.md#rebuild)).

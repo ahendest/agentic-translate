@@ -14,30 +14,27 @@ keep control of the religious and technical terms.
 
 ## How to start
 
-Open an agent in this folder and send one line:
-
-```text
-çeviri istegi, kaynak dil: tr, hedef dil: ro, kitabin directory'si: path/to/book.epub
-```
-
-The agent prepares the book, divides it into units in book order and translates them one by
+Open an agent in the workshop folder, say hello and tell it the book, its language and the
+language you want, in your own words. The agent prepares the book, divides it into units in book order and translates them one by
 one. A second, independent agent reviews each finished unit. Quotations that the book keeps in
 another script, for example Arabic verses, are copied exactly as printed.
 
 ## What you approve
 
-Some words must not be flattened into a general word: *namaz* is not just "prayer". When the
-translation meets such a term for the first time, it asks the terminology part of the workshop,
+Some words must not be flattened into a general word: the name of a ritual prayer is not just
+"prayer". When the translation meets such a term for the first time, it asks the terminology
+part of the workshop,
 [punctual-term-translation](https://github.com/ahendest/punctual-term-translation). There you
 read two proposals with their short notes and approve the exact wording. Approved wording is
-reused in every book of that language. Units that wait for a term are finished after your
-approval.
+reused in every book with the same source and target language. Units that wait for a term are
+finished after your approval.
 
 ## Where the results appear
 
 - `sources/<book>/overview.md`: what was prepared from the EPUB and anything to check.
 - `translations/<language>/<book>/translation/`: the translated units.
-- `knowledge/knowledge.jsonl`: every approved term, readable as text.
+- `knowledge/knowledge.jsonl`: your approved terms, readable as text. Your terms stay on your
+  computer; the workshop starts with none.
 
 Books and translations stay on your computer; they are not part of this repository. Building a
 printed edition from an EPUB-based translation is a later feature.

@@ -1,6 +1,6 @@
 ---
 name: translation-reviewer
-description: Independently inspect and correct one assigned translation segment of a Risale-i Nur book. Start fresh, compare the full source, correct confirmed errors directly, return a compact report.
+description: Independently inspect and correct one assigned translation segment of a book. Start fresh, compare the full source, correct confirmed errors directly, return a compact report.
 ---
 
 # Review the assigned segment

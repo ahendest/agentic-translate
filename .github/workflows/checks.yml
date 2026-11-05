@@ -18,10 +18,8 @@ jobs:
           python-version: '3.12'
       - name: Unit tests
         run: env PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tools -p 'test_*.py'
-      - name: Rebuild the store from text and audit it
+      - name: Build an empty store with the dictionary and audit it
         run: |
           python -B tools/knowledge.py --config knowledge/config.json init
-          python -B tools/knowledge.py --config knowledge/config.json import-terms --input knowledge/knowledge.jsonl
           python -B tools/knowledge.py --config knowledge/config.json import-lugat --input knowledge/sources/db_lugat.sql
-          git diff --exit-code knowledge/knowledge.jsonl
           python -B tools/knowledge.py --config knowledge/config.json integrity

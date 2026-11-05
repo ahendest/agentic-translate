@@ -31,11 +31,11 @@ class ValidatorTests(unittest.TestCase):
         self.store = store = knowledge.Knowledge(config)
         store.init()
         with store.write() as connection:
-            store.put_term(connection, {'id': 'namaz', 'language': 'ro', 'source_form': 'namaz', 'reading_form': 'namaz',
+            store.put_term(connection, {'id': 'namaz', 'language': 'ro', 'source_language': 'tr', 'source_form': 'namaz', 'reading_form': 'namaz',
                                         'translation': 'rugăciune', 'arabic': 'صَلَاة', 'footnote': NOTE, 'sense': 'ritual prayer',
                                         'note': None, 'approval': 'Fixture', 'approved_at': '2026-10-25'})
         self.project = self.save('project.json', json.dumps({
-            'id': 'ro-book', 'target_language': 'ro', 'prepared_source': relative(self.root / 'segments'),
+            'id': 'ro-book', 'source_language': 'tr', 'target_language': 'ro', 'prepared_source': relative(self.root / 'segments'),
             'translation': relative(self.root / 'translation'), 'knowledge': relative(config), 'verbatim_script': 'Arabic'}))
 
     def save(self, name, text):
@@ -93,7 +93,7 @@ class ValidatorTests(unittest.TestCase):
 
     def test_term_without_footnote_is_written_as_a_later_use_everywhere(self):
         with self.store.write() as connection:
-            self.store.put_term(connection, {'id': 'evliya', 'language': 'ro', 'source_form': 'evliya', 'reading_form': 'evliya',
+            self.store.put_term(connection, {'id': 'evliya', 'language': 'ro', 'source_language': 'tr', 'source_form': 'evliya', 'reading_form': 'evliya',
                                              'translation': 'prieteni', 'arabic': None, 'footnote': None, 'sense': 'saints',
                                              'note': None, 'approval': 'Fixture', 'approved_at': '2026-10-28'})
         self.save('translation/002-b.ro.md', SECOND.replace('urmează', 'și evliya prieteni urmează'))
@@ -107,7 +107,7 @@ class ValidatorTests(unittest.TestCase):
 
     def test_note_call_holding_another_term_id_is_not_a_term_use(self):
         with self.store.write() as connection:
-            self.store.put_term(connection, {'id': 'namaz-i-cuma', 'language': 'ro', 'source_form': 'namaz-ı cuma',
+            self.store.put_term(connection, {'id': 'namaz-i-cuma', 'language': 'ro', 'source_language': 'tr', 'source_form': 'namaz-ı cuma',
                                              'reading_form': 'namaz-i cuma', 'translation': 'rugăciunea de vineri', 'arabic': None,
                                              'footnote': 'Nota.', 'sense': 'Friday prayer', 'note': None,
                                              'approval': 'Fixture', 'approved_at': '2026-10-30'})
@@ -118,7 +118,7 @@ class ValidatorTests(unittest.TestCase):
 
     def test_target_letters_and_short_forms_do_not_match_other_words(self):
         with self.store.write() as connection:
-            self.store.put_term(connection, {'id': 'rab', 'language': 'ro', 'source_form': 'Rab', 'reading_form': 'Rab',
+            self.store.put_term(connection, {'id': 'rab', 'language': 'ro', 'source_language': 'tr', 'source_form': 'Rab', 'reading_form': 'Rab',
                                              'translation': 'Domnul', 'arabic': None, 'footnote': 'Nota.', 'sense': 'Lord',
                                              'note': None, 'approval': 'Fixture', 'approved_at': '2026-10-30'})
         self.save('translation/001-a.ro.md', FIRST.replace('începe', 'răbdare, rabdă, începe') )
@@ -182,7 +182,7 @@ class ValidatorTests(unittest.TestCase):
     def test_missing_parts_are_decisions(self):
         """Gloss once, then the original alone; a note without an equivalent; an equivalent without the original."""
         mehdi = 'Mehdi (arab. mahdī, مَهْدِيّ): cel călăuzit.'
-        fixture = {'language': 'ro', 'arabic': None, 'footnote': None, 'sense': 's', 'note': None,
+        fixture = {'language': 'ro', 'source_language': 'tr', 'arabic': None, 'footnote': None, 'sense': 's', 'note': None,
                    'approval': 'Fixture', 'approved_at': '2026-10-30'}
         with self.store.write() as connection:
             for record in ({'id': 'ummet', 'source_form': 'ümmet', 'reading_form': 'ummet', 'translation': 'comunitate', 'later_use': 'original'},

@@ -50,7 +50,7 @@ def project(value):
     path = local(value)
     require(path.name == 'project.json' and path.is_file() and path.is_relative_to(ROOT / 'translations'), 'Unknown project')
     data = load(path)
-    require(data.get('target_language') and data.get('prepared_source'), 'Incomplete project routes')
+    require(data.get('source_language') and data.get('target_language') and data.get('prepared_source'), 'Incomplete project routes')
     return path, data
 
 
@@ -138,7 +138,7 @@ def term_request(project_path, term, location):
     require(re.search(knowledge.stem_pattern(term), knowledge.fold('\n'.join(lines[start:end]))),
             'Term is absent from the located paragraph')
     store = knowledge.Knowledge(local(data['knowledge']))
-    found = store.find(term, data['target_language'])
+    found = store.find(term, data['target_language'], data['source_language'])
     request_text = term + ' (' + relative(path) + ':' + str(line) + ')'
     if not found:
         return {'state': 'request', 'text': request_text}

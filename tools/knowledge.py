@@ -14,10 +14,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WRITE_ROOTS = (ROOT / 'knowledge',)
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 11
 LANGUAGE = r'[a-z]{2,3}(?:-[a-z0-9]+)*'
-TERM_FIELDS = ('id','language','source_form','reading_form','translation','arabic','footnote','later_use','sense','note','approval','approved_at')
+TERM_FIELDS = ('id','language','source_language','source_form','reading_form','translation','arabic','footnote','later_use','sense','note','approval','approved_at')
 UNIT = re.compile(r'(\d+)-')
+LISAN_BASE = 1000000
+LISAN_ENTRY = re.compile(r'(?m)^@\s*([^:\n]{1,60}?)\s*:\s*')
 
 class KnowledgeError(Exception):
     def __init__(self, code, message, exit_code=3):
@@ -44,7 +46,8 @@ def dump(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
 
 def key(value):
-    text = (value or '').casefold().replace('ı','i')
+    # Tatweel (U+0640) only stretches a written word; it is not a letter.
+    text = (value or '').casefold().replace('ı','i').replace('\u0640','')
     return ''.join(c for c in unicodedata.normalize('NFKD',text) if not unicodedata.combining(c))
 
 APOSTROPHES = str.maketrans('’‘ʼ', "'''")
@@ -148,13 +151,25 @@ def parse_lugat(text):
             if pos >= len(text) or text[pos] != ',': fail('invalid_dump','Missing INSERT terminator',2)
             pos += 1
 
+def parse_lisan(directory):
+    """Entries `@headword: text` of the Lisan al-Arab text files, in file order; a repeated file is read once."""
+    seen=set()
+    for p in sorted(path(directory).glob('*.txt')):
+        text=p.read_text(encoding='utf-8')
+        if text in seen: continue
+        seen.add(text)
+        starts=list(LISAN_ENTRY.finditer(text))
+        for i,m in enumerate(starts):
+            body=' '.join(text[m.end():starts[i+1].start() if i+1<len(starts) else len(text)].split())
+            if body: yield m[1].strip(),body
+
 def required(record, fields):
     for field in fields:
         if field not in record or record[field] is None or record[field] == '':
             fail('missing_data',f'Missing field: {field}')
 
 def validate_term(r):
-    required(r,['id','language','source_form','sense','approval','approved_at'])
+    required(r,['id','language','source_language','source_form','sense','approval','approved_at'])
     # A missing reading form, translation or footnote is a decision, not an error.
     for field in ('reading_form','translation','arabic','footnote','note'):
         if r.get(field) is not None and not (isinstance(r[field],str) and r[field].strip()):
@@ -168,7 +183,7 @@ def validate_term(r):
     unknown=set(r)-set(TERM_FIELDS)
     if unknown: fail('invalid_record',f'Unknown term fields: {sorted(unknown)}',2)
     if not re.fullmatch(r'[\w-]+',r['id']): fail('invalid_record','Term ID must be usable as a footnote ID',2)
-    if not re.fullmatch(LANGUAGE,str(r['language'])): fail('invalid_record','Invalid language code',2)
+    if not all(re.fullmatch(LANGUAGE,str(r[f])) for f in ('language','source_language')): fail('invalid_record','Invalid language code',2)
 
 class Knowledge:
     def __init__(self, config_path):
@@ -212,7 +227,8 @@ class Knowledge:
             base=[r[0] for r in c.execute('SELECT id FROM lugat')]
             if sorted(base)!=sorted(int(r[0]) for r in c.execute('SELECT id FROM lugat_fts')): fail('integrity','lugat search index mismatch',4)
             terms=c.execute('SELECT count(*) FROM terms').fetchone()[0]
-        return {'integrity':'ok','lugat':len(base),'terms':terms}
+            dictionaries=dict(c.execute('SELECT dictionary,count(*) FROM lugat GROUP BY dictionary').fetchall())
+        return {'integrity':'ok','lugat':len(base),'dictionaries':dictionaries,'terms':terms}
 
     @contextlib.contextmanager
     def write(self,dry_run=False,export=True):
@@ -253,8 +269,8 @@ class Knowledge:
     def put_term(self,c,r):
         """Insert or replace one approved term."""
         r=dict(r,later_use=r.get('later_use') or 'equivalent'); validate_term(r)
-        old=c.execute('SELECT language FROM terms WHERE id=?',(r['id'],)).fetchone()
-        if old and old[0]!=r['language']: fail('language_conflict',f"Term {r['id']} belongs to another language")
+        old=c.execute('SELECT language,source_language FROM terms WHERE id=?',(r['id'],)).fetchone()
+        if old and tuple(old)!=(r['language'],r['source_language']): fail('language_conflict',f"Term {r['id']} belongs to another language pair")
         c.execute('INSERT INTO terms VALUES ('+','.join('?'*len(TERM_FIELDS))+') ON CONFLICT(id) DO UPDATE SET '+
                   ','.join(f'{f}=excluded.{f}' for f in TERM_FIELDS[1:]),[r.get(f) for f in TERM_FIELDS])
 
@@ -267,25 +283,30 @@ class Knowledge:
         if not r: fail('not_found',f'Term not found: {ident}')
         return r
 
-    def terms_list(self,language):
-        if not re.fullmatch(LANGUAGE,language or ''): fail('invalid_input','Supply a language code',2)
-        with contextlib.closing(self.read()) as c:
-            return [self._record(c,row[0]) for row in c.execute('SELECT id FROM terms WHERE language=? ORDER BY id',(language,)).fetchall()]
+    def _ids(self,c,language,source_language):
+        """Term IDs of one target language, and of one source language when given: a record serves the books of its source language only."""
+        if not re.fullmatch(LANGUAGE,language or '') or (source_language is not None and not re.fullmatch(LANGUAGE,source_language)):
+            fail('invalid_input','Supply language codes',2)
+        return [row[0] for row in c.execute('SELECT id FROM terms WHERE language=? AND (? IS NULL OR source_language=?) ORDER BY id',
+                                            (language,source_language,source_language))]
 
-    def find(self,query,language):
+    def terms_list(self,language,source_language=None):
+        with contextlib.closing(self.read()) as c:
+            return [self._record(c,ident) for ident in self._ids(c,language,source_language)]
+
+    def find(self,query,language,source_language):
         """Terms of one language whose original is the query (exact), a word prefix of it (inflection) or inside it
         (contained, as in a compound); longest first. Vowel signs do not change the form.
 
         Only an exact hit is reused: a prefix or a part can be another concept, so the others are candidates."""
-        if not re.fullmatch(LANGUAGE,language or ''): fail('invalid_input','Supply a language code',2)
         needle=' '.join(fold(query).split())
         def kind(form):
             pattern=stem_pattern(form)
             return 'exact' if bare(form).split()==bare(query).split() else 'inflection' if re.fullmatch(pattern,needle) else 'contained' if re.search(pattern,needle) else None
         with contextlib.closing(self.read()) as c:
-            rows=c.execute('SELECT id,source_form FROM terms WHERE language=?',(language,)).fetchall()
+            rows=[self._record(c,ident) for ident in self._ids(c,language,source_language)]
             hits=sorted(((row,kind(row['source_form'])) for row in rows if needle),key=lambda hit:(-len(hit[0]['source_form']),hit[0]['id']))
-            return [dict(self._record(c,row['id']),match_type=match) for row,match in hits if match]
+            return [dict(row,match_type=match) for row,match in hits if match]
 
     def import_lugat(self,input_path):
         p=path(input_path); sha=digest(p); count=0
@@ -295,26 +316,41 @@ class Knowledge:
                 if old[0]==sha: return {'id':'lugat','unchanged':True,'sha256':sha}
                 fail('import_conflict','Lugat dump changed; existing originals are protected')
             for r in parse_lugat(p.read_text(encoding='utf-8')):
-                c.execute('INSERT INTO lugat VALUES (?,?,?,?,?,?)',(r['id'],r['indeks'],r['kelime'],r['kirpilmis'],r['anlam'],key(r['kelime'])))
+                c.execute('INSERT INTO lugat VALUES (?,?,?,?,?,?,?)',(r['id'],'lugat',r['indeks'],r['kelime'],r['kirpilmis'],r['anlam'],key(r['kelime'])))
                 c.execute('INSERT INTO lugat_fts VALUES (?,?)',(r['id'],key(' '.join(r[f] or '' for f in ('kelime','kirpilmis','anlam')))))
                 count+=1
             c.execute("INSERT INTO meta VALUES ('lugat_sha256',?),('lugat_count',?)",(sha,str(count)))
         return {'id':'lugat','count':count,'sha256':sha}
 
+    def import_lisan(self,directory):
+        entries=list(parse_lisan(directory))
+        if not entries: fail('invalid_dump','No Lisan al-Arab entries found',2)
+        sha=hashlib.sha256(dump(entries).encode()).hexdigest()
+        with self.write(export=False) as c:
+            old=c.execute("SELECT value FROM meta WHERE key='lisan_sha256'").fetchone()
+            if old:
+                if old[0]==sha: return {'id':'lisan-al-arab','unchanged':True,'sha256':sha}
+                fail('import_conflict','Lisan al-Arab text changed; existing originals are protected')
+            for n,(headword,body) in enumerate(entries,LISAN_BASE):
+                c.execute('INSERT INTO lugat VALUES (?,?,?,?,?,?,?)',(n,'lisan-al-arab',None,headword,None,body,key(headword)))
+                c.execute('INSERT INTO lugat_fts VALUES (?,?)',(n,key(headword+' '+body)))
+            c.execute("INSERT INTO meta VALUES ('lisan_sha256',?),('lisan_count',?)",(sha,str(len(entries))))
+        return {'id':'lisan-al-arab','count':len(entries),'sha256':sha}
+
     def lugat_search(self,query):
         with contextlib.closing(self.read()) as c:
-            rows=c.execute('SELECT id,kelime,indeks FROM lugat WHERE search_key=? ORDER BY id',(key(query),)).fetchall()
+            rows=c.execute('SELECT id,dictionary,kelime,indeks FROM lugat WHERE search_key=? ORDER BY id',(key(query),)).fetchall()
             match='exact_form'
             if not rows:
                 q=fts_query(query)
-                rows=c.execute('SELECT l.id,l.kelime,l.indeks FROM lugat_fts f JOIN lugat l ON l.id=f.id WHERE lugat_fts MATCH ? ORDER BY rank',(q,)).fetchall() if q else []
+                rows=c.execute('SELECT l.id,l.dictionary,l.kelime,l.indeks FROM lugat_fts f JOIN lugat l ON l.id=f.id WHERE lugat_fts MATCH ? ORDER BY rank',(q,)).fetchall() if q else []
                 match='lexical'
             return [dict(r,match_type=match) for r in rows]
 
     def lugat_get(self,ident):
         """One dictionary entry with the entries that its "Bak:" references name."""
         with contextlib.closing(self.read()) as c:
-            row=c.execute('SELECT id,indeks,kelime,kirpilmis,anlam FROM lugat WHERE id=?',(int(ident),)).fetchone()
+            row=c.execute('SELECT id,dictionary,indeks,kelime,kirpilmis,anlam FROM lugat WHERE id=?',(int(ident),)).fetchone()
             if not row: fail('not_found','Lugat record not found')
             references=[{'query':m[1].strip(),'target_ids':[r[0] for r in c.execute('SELECT id FROM lugat WHERE search_key=? ORDER BY id',(key(m[1].strip()),))]}
                         for m in re.finditer(r'\bBak\s*:\s*([^);.\n<]+)',row['anlam'] or '',re.I)]
@@ -322,12 +358,12 @@ class Knowledge:
 
     def scan(self,project,units=None):
         """Approved terms in a book's source units, in any inflection, with their unit and line; all units without a range."""
-        manifest=project if isinstance(project,dict) else load_json(project); required(manifest,['target_language','prepared_source'])
+        manifest=project if isinstance(project,dict) else load_json(project); required(manifest,['target_language','source_language','prepared_source'])
         first,last=unit_range(units) if units else (1,float('inf'))
         files=[p for p in unit_files(manifest) if first<=unit_number(p)<=last]
         if not files: fail('missing_scope','No source units in the requested range',2)
         with contextlib.closing(self.read()) as c:
-            terms=c.execute('SELECT id,source_form FROM terms WHERE language=? ORDER BY length(source_form) DESC,id',(manifest['target_language'],)).fetchall()
+            terms=sorted((self._record(c,ident) for ident in self._ids(c,manifest['target_language'],manifest['source_language'])),key=lambda r:(-len(r['source_form']),r['id']))
         result=[]
         for p in files:
             original=p.read_text(encoding='utf-8'); text=fold(original); occupied=[]
@@ -363,11 +399,11 @@ def load_project_terms(project, repo_root=ROOT):
         p=Path(value)
         return p.resolve() if p.is_absolute() else (root/p).resolve()
     manifest=project if isinstance(project,dict) else json.loads(resolve(project).read_text(encoding='utf-8'))
-    required(manifest,['target_language'])
+    required(manifest,['target_language','source_language'])
     if not manifest.get('knowledge'): fail('missing_knowledge_route','Project has no knowledge configuration route')
     store=Knowledge(resolve(manifest['knowledge']))
     return {r['id']:{'reading':r['reading_form'],'gloss':r['translation'],'body':r['footnote'],'later':r['later_use']}
-            for r in store.terms_list(manifest['target_language'])}
+            for r in store.terms_list(manifest['target_language'],manifest['source_language'])}
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__); parser.add_argument('--config',required=True)
@@ -375,14 +411,14 @@ def main(argv=None):
     def paging(p,limit=10):
         p.add_argument('--cursor',type=int,default=0); p.add_argument('--limit',type=int,default=limit)
     sub.add_parser('init'); sub.add_parser('integrity')
-    for name in ('import-lugat','import-terms'):
+    for name in ('import-lugat','import-lisan','import-terms'):
         sub.add_parser(name).add_argument('--input',required=True)
     sub.add_parser('export-terms').add_argument('--output',required=True)
     p=sub.add_parser('scan'); p.add_argument('--project',required=True); p.add_argument('--units'); paging(p)
     terms=sub.add_parser('terms').add_subparsers(dest='action',required=True)
-    a=terms.add_parser('list'); a.add_argument('--language',required=True); paging(a,20)
+    a=terms.add_parser('list'); a.add_argument('--language',required=True); a.add_argument('--source-language'); paging(a,20)
     a=terms.add_parser('get'); a.add_argument('--id',required=True)
-    a=terms.add_parser('find'); a.add_argument('--query',required=True); a.add_argument('--language',required=True); paging(a)
+    a=terms.add_parser('find'); a.add_argument('--query',required=True); a.add_argument('--language',required=True); a.add_argument('--source-language',required=True); paging(a)
     lugat=sub.add_parser('lugat').add_subparsers(dest='action',required=True)
     a=lugat.add_parser('search'); a.add_argument('--query',required=True); paging(a)
     a=lugat.add_parser('get'); a.add_argument('--id',type=int,required=True)
@@ -392,13 +428,14 @@ def main(argv=None):
         if cmd=='init': result=k.init()
         elif cmd=='integrity': result=k.integrity()
         elif cmd=='import-lugat': result=k.import_lugat(args.input)
+        elif cmd=='import-lisan': result=k.import_lisan(args.input)
         elif cmd=='import-terms': result=k.import_terms(args.input)
         elif cmd=='export-terms': result=k.export_terms(args.output)
         elif cmd=='scan': result=k.scan(args.project,args.units)
         elif cmd=='terms':
-            if args.action=='list': result=k.terms_list(args.language)
+            if args.action=='list': result=k.terms_list(args.language,args.source_language)
             elif args.action=='get': result=k.term_get(args.id)
-            else: result=k.find(args.query,args.language)
+            else: result=k.find(args.query,args.language,args.source_language)
         else: result=k.lugat_get(args.id) if args.action=='get' else k.lugat_search(args.query)
         items=result if isinstance(result,list) else [result]; cursor=None; warnings=[]
         if hasattr(args,'limit'):

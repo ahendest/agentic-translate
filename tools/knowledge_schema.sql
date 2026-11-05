@@ -1,12 +1,14 @@
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-INSERT INTO meta VALUES ('schema_version','9');
+INSERT INTO meta VALUES ('schema_version','11');
 
--- Source dictionary. Read-only after import from knowledge/sources/db_lugat.sql.
-CREATE TABLE lugat (id INTEGER PRIMARY KEY, indeks TEXT, kelime TEXT, kirpilmis TEXT, anlam TEXT, search_key TEXT NOT NULL);
+-- Source dictionaries. Read-only after import: 'lugat' from knowledge/sources/db_lugat.sql,
+-- 'lisan-al-arab' from the downloaded Lisan al-Arab text (IDs from 1000000).
+CREATE TABLE lugat (id INTEGER PRIMARY KEY, dictionary TEXT NOT NULL, indeks TEXT, kelime TEXT, kirpilmis TEXT, anlam TEXT, search_key TEXT NOT NULL);
 CREATE INDEX lugat_search ON lugat(search_key);
 CREATE VIRTUAL TABLE lugat_fts USING fts5(id UNINDEXED, body, tokenize='unicode61 remove_diacritics 2');
 
 -- Approved terminology. Written only by punctual-term-translation after human approval.
+-- A record serves one source language and one target language (language).
 -- The term ID is also the footnote ID in book text. NULL reading_form: the original is not kept,
 -- only the equivalent is written. NULL translation: the original is kept alone. NULL footnote:
 -- no note. later_use: after the first use, 'equivalent' writes the term followed by its
@@ -14,6 +16,7 @@ CREATE VIRTUAL TABLE lugat_fts USING fts5(id UNINDEXED, body, tokenize='unicode6
 CREATE TABLE terms (
   id TEXT PRIMARY KEY,
   language TEXT NOT NULL,
+  source_language TEXT NOT NULL,
   source_form TEXT NOT NULL,
   reading_form TEXT,
   translation TEXT,
@@ -25,4 +28,4 @@ CREATE TABLE terms (
   approval TEXT NOT NULL,
   approved_at TEXT NOT NULL
 );
-CREATE INDEX terms_language ON terms(language);
+CREATE INDEX terms_language ON terms(language, source_language);
