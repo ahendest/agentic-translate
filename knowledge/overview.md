@@ -14,8 +14,8 @@ Schema 11. Each table has one writer. Each user's store is their own: it starts 
 | `lugat`, `lugat_fts` | Source dictionaries and their search index; `dictionary` names each entry's dictionary | Import only: `lugat` from `sources/db_lugat.sql`, `lisan-al-arab` from the Lisan al-Arab text that `workshop.py` downloads (headwords are Arabic roots) |
 | `terms` | One approved term: `language` (target), `source_language`, `source_form` (as in the source), `reading_form` (as printed in the book; null: only the equivalent is written), `translation` (the equivalent; null: the original stays alone), `arabic`, `footnote` (null: no note), `later_use` (`equivalent` or `original`: what later uses write), `sense`, optional `note`, `approval`, `approved_at` | punctual-term-translation, after human approval |
 
-Term IDs are `term-<language>-<slug>` and are also the footnote IDs in book text. A source
-form without Latin letters or digits gets `u` and a hash of its folded form as slug. Queries
+A term ID is the plain slug of the source form and is also the footnote ID in book text. A
+source form without Latin letters or digits gets `u` and a hash of its folded form as slug. Queries
 are scoped by the project's target and source language: a book never sees wording approved for
 another target language or for books of another source language.
 `note` guides translators for context-dependent terms; it does not force one rendering.
@@ -42,8 +42,8 @@ the term in book order reads `term (equivalent)[^TERM_ID]`, with the native foot
 by the exact approved footnote in the same unit; later uses place the equivalent directly
 after the term, as an apposition. A record may lack a reading form, a translation or a
 footnote, and `later_use: original` keeps the term alone after its first use; each is a user
-decision that [AGENTS.md](../AGENTS.md#terminology) applies. The term ID is the plain term
-slug; a footnote ID is a term note when it names an approved term. Preserve author note IDs, bodies and numbering without collisions.
+decision that [AGENTS.md](../AGENTS.md#terminology) applies. A footnote ID is a term note
+when it names an approved term. Preserve author note IDs, bodies and numbering without collisions.
 Exclude generated contents and verbatim quotations from replacement. The book validator checks
 the note's place and wording.
 

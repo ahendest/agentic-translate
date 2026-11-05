@@ -1,104 +1,14 @@
 # Book translation
 
-For translation, follow the Voice section and the requested language's
-`translations/<language>/SOUL.md` when it exists. Use only the requested project's context.
-Maintenance requests do not start translation. Never add language-specific rules to tools or
-to these instructions.
+The agent that receives a translation request follows the
+[translation-coordinator skill](.agents/skills/translation-coordinator/SKILL.md); a fresh agent
+follows the skill it is given. Use only the requested project's context. Maintenance requests
+do not start translation.
 
 ## Voice
 
 Write as the author wrote: keep the author's nuance, register, rhythm, tone and voice. This
 section governs style only, not terminology.
-
-## Workflow
-
-Require the source language, the target language and an existing EPUB file; ask for missing
-fields. The source language must be one of `source_languages` in
-`knowledge/config.json`; the target language is free. The supplied EPUB is the only source of
-truth; use no other edition unless the user names it. Derive the book ID from the filename.
-Without narrower scope, proceed through the book in order, preserving accepted translation.
-
-Run from this repository. Replace uppercase arguments with request values or returned IDs/paths.
-
-The agent that receives the request coordinates. It runs the commands below, starts fresh
-agents and keeps only their short reports; it does not read or translate book text itself.
-Every fresh agent starts without inherited history, with this file and the paths it needs.
-When an agent is refused or stops before its report, start it once more with the same task
-in a shorter prompt of one unit; only a second refusal goes to the user.
-
-1. Prepare routes without loading book text:
-
-   ```bash
-   python3 -B tools/translation.py prepare --source "SOURCE_FILE" --source-language SOURCE_LANG --target-language TARGET_LANG
-   ```
-
-   It creates or reuses `translations/TARGET_LANG/BOOK_ID/project.json`; external originals
-   are imported unchanged. For `preparation_required`, start a preparation
-   agent of your own model with the
-   [prepare-translation-source skill](.agents/skills/prepare-translation-source/SKILL.md),
-   the returned `preparation_command` and the project path, then rerun prepare. `available`
-   confirms existence, not extraction quality.
-2. List the units with cursor continuation:
-
-   ```bash
-   python3 -B tools/translation.py segments --project PROJECT_JSON --limit 10
-   ```
-
-   Translate in book order. Give each unit to a fresh segment translator of your own model,
-   one unit at a time, so earlier renderings exist when the next unit starts. While a unit is
-   translated, give the previous finished segment to a fresh reviewer of your own model with
-   the [translation-reviewer skill](.agents/skills/translation-reviewer/SKILL.md) and the
-   project, source and target locations; pass no translator reasoning or prior verdicts.
-   Segments with term placeholders wait for their terms.
-3. Append the missing terms from the translators' reports, one `term (source-segment.md:line)`
-   per line, to `../punctual-term-translation/results/requested-terms.md`; the terminology
-   area resolves it. When approved wording arrives, start a fresh segment
-   translator for each waiting segment to complete it, then its reviewer.
-4. Collect reviews; run the manifest's validator after final changes, with the unit range as
-   scope (`--units 001-010`).
-   Check coverage before terminology; fix target_integrity failures. The validator also rejects
-   empty units, author notes whose calls or definitions differ from the source, a first use
-   without `term (equivalent)[^TERM_ID]` and a later use with a parenthetical. In book order,
-   the first retained occurrence of an approved term is the first use; the book defines its
-   exact note once, in the same unit. Report scope, checks and unresolved passages; do not
-   finalize passages awaiting terminology.
-
-## Segment translation
-
-This section is for the segment translator. Translate only the assigned unit and write only
-its target file, `<translation>/<unit id>.<target language>.md` with the unit's headings and
-lines in the same order; do not start agents.
-
-1. Read the unit:
-
-   ```bash
-   python3 -B tools/translation.py read --project PROJECT_JSON --unit UNIT_ID
-   ```
-
-   Retrieve the exact approved wording of every returned known term before drafting with
-   `term-request` (step 2) for its original form.
-2. Check terms that need special treatment:
-
-   ```bash
-   python3 -B tools/translation.py term-request --project PROJECT_JSON --term "TERM" --at "SOURCE_SEGMENT.md:LINE"
-   ```
-
-   Write TERM without the attached prefixes that `word_prefixes` in `knowledge/config.json`
-   lists for the source language. Apply each matching approved record: its reading form, translation and footnote. A
-   record's note guides context-dependent terms; choose by sense and do not force one
-   rendering. `candidates` are approved terms whose original is only a word prefix of the
-   request or a part of a compound request: apply one only when the paragraph shows a derived or inflected word of that
-   concept; otherwise treat the term as missing. For a missing term, keep
-   `{{TERM:source form}}` as a placeholder and collect the returned request text
-   `term (source-segment.md:line)`. The validator rejects any `{{TERM:`
-   placeholder inside the requested scope.
-3. Understand the full unit, translate it and compare each target paragraph against its
-   source. For recurring titles, formulas and names, search the earlier translated segments
-   and reuse their rendering.
-4. When completing a waiting segment, replace each placeholder with the approved term and
-   its equivalent. If no earlier unit holds the note (`grep -l "^\[\^TERM_ID\]:" TRANSLATION_DIR/*.md`),
-   its first occurrence in this unit is the first use.
-5. Report only the target file, the missing term requests and unresolved passages.
 
 ## Terminology
 
@@ -107,7 +17,8 @@ target-language word carries its full meaning in the paragraph: the name of a ri
 worship is not a generic word, but common words of thought or knowledge translate directly.
 Arabic origin alone does not make a word a term. The user decides requested terms in the
 terminology area. Existing approvals remain binding. Proposals, historical evidence and
-lexical matches do not approve wording.
+lexical matches do not approve wording. Name God as Allah, not with the target language's
+generic word for God.
 
 Use the approved reading form and note of the record. Inflect the retained term and its
 equivalent as the sentence requires; do not keep the original form blindly. At the first use
@@ -127,7 +38,7 @@ A record may lack parts by the user's decision; apply it as stored:
 Derived words, plurals and spelling variants of an approved term follow that term: translate
 them in harmony with its approved equivalent, without a separate term request. If you keep
 such a word in its original form, it is an occurrence of the term and is written in the same
-way. Wording and approval belong to punctual-term-translation.
+way.
 
 ## Always do
 
@@ -143,23 +54,22 @@ way. Wording and approval belong to punctual-term-translation.
   references and context. Hold only unresolved passages; global blocking requires substantial
   unreadability or uncertain completeness.
 - Use bounded retrieval for large technical output.
-- Only the terminology area writes terms. Add a user's own decision about a term, such as
-  "translate by meaning" or "keep the original", to its request line as `user: DECISION`.
+- Add a user's own decision about a term, such as "translate by meaning" or "keep the
+  original", to its request line as `user: DECISION`.
 
 ## Ask first
 
 - Change source authority, edition or segmentation.
 - Edit accepted text outside scope or settle material ambiguity unresolved by evidence.
-- Build publications, commit, push or release, unless already requested.
+- Build publications, unless already requested.
 
 ## Never do
 
 - Alter verbatim quotations, invent terminology/footnotes, collect term approval here or
   silently fall back when the shared store fails.
 - Bulk-index book text, databases or agent reasoning into technical caches.
-- Create copied glossaries, another database, routine reports, mandatory segment notes,
-  hooks, dashboards, validation frameworks or extra quality agents.
-- Hard-code a language, a model or a vendor in tools, schemas or instructions.
+- Create routine reports, mandatory segment notes, hooks, dashboards, validation frameworks
+  or extra quality agents.
 
 ## Checks
 
@@ -169,6 +79,3 @@ python3 -B tools/knowledge.py --config knowledge/config.json integrity
 ```
 
 Run affected book validators when their code/inputs change; do not build publications for maintenance.
-
-A fresh clone has no store; the workshop's `workshop.py` builds it
-([Rebuild](knowledge/overview.md#rebuild)).

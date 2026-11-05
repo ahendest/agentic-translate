@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Steps move out of AGENTS.md into the `translation-coordinator` and `segment-translator`
+  skills, so each fresh agent loads only its own steps; AGENTS.md keeps Voice, Terminology and
+  the boundaries. Rules of the workshop root are no longer repeated. Book text names God as
+  Allah in every target language. `translations/<language>/SOUL.md` holds the user's own style
+decisions for a target language: the coordinator writes it and Git does not track it.
 - `import-lisan` joins each continued part `(تابع...)` to the entry it continues, so every
   Lisan al-Arab entry has its root as headword; a changed reading replaces the Lisan data.
 - CI pins `actions/checkout` v7.0.1 and `actions/setup-python` v7.1.0 by commit (Node.js 24),
