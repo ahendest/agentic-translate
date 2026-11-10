@@ -17,5 +17,6 @@ __pycache__/
 
 # Downloaded dictionaries and the local text copy of your own approved terms
 /knowledge/sources/downloads/
-/knowledge/knowledge.jsonl
+/knowledge/*.jsonl
+/knowledge/*.jsonl.old
 /knowledge/sources/legacy-records.json

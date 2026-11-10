@@ -20,7 +20,7 @@ class KnowledgeTests(unittest.TestCase):
         self.source.write_text('## text/one.xhtml\nNamaz ve nefs.\n\nNefs-i emmâre ve nefs.\n',encoding='utf-8')
         self.project=self.save('project.json',{'id':'ro-book','source_language':'tr','target_language':'ro','prepared_source':str(source),'translation':str(self.root/'translation')})
         self.term={'id':'namaz','language':'ro','source_language':'tr','source_form':'namaz','reading_form':'namaz','translation':'rugăciune','arabic':'صَلَاة',
-                   'footnote':'Text exact\ncu „Unicode” şi نَفْس.','later_use':'equivalent','sense':'ritual prayer','note':None,
+                   'footnote':'Text exact\ncu „Unicode” şi نَفْس.','sense':'ritual prayer','note':None,
                    'approval':'User-supplied exact text','approved_at':'2026-10-24'}
         self.terms=[self.term]
     def save(self,name,data):
@@ -46,17 +46,24 @@ class KnowledgeTests(unittest.TestCase):
         self.assertEqual([r['id'] for r in self.store.find('namaz','fr','tr')],['fr-namaz'])
         self.assertEqual({hit['id'] for hit in self.store.scan(self.project)},{'namaz'})
         self.assertEqual([(r['id'],r['translation'],r['footnote']) for r in self.store.terms_list('fr')],[('fr-namaz','prière','Note française.')])
-    def test_source_languages_are_isolated(self):
-        # A record approved for Turkish books never serves an Arabic book of the same target language.
-        self.terms.append(dict(self.term,id='salat',source_language='ar',source_form='صلاة',reading_form='salat'))
-        self.import_data()
-        self.assertEqual([r['id'] for r in self.store.find('namaz','ro','ar')],[])
-        self.assertEqual([r['id'] for r in self.store.find('صلاة','ro','ar')],['salat'])
-        self.assertEqual([r['id'] for r in self.store.terms_list('ro','tr')],['namaz'])
-        self.assertEqual(len(self.store.terms_list('ro')),2)
+    def test_each_source_language_has_its_own_store(self):
+        # A record approved for Turkish books never serves an Arabic book: each source language has its own store.
+        config=self.save('config.json',{'engine':'sqlite','path':str(self.root/'{source}.sqlite'),'export':str(self.root/'{source}.jsonl')})
+        with self.assertRaises(k.KnowledgeError): k.Knowledge(config)
+        tr,ar=k.Knowledge(config,'tr'),k.Knowledge(config,'ar'); tr.init(); ar.init()
+        salat=dict(self.term,id='salat',source_language='ar',source_form='صلاة',reading_form='salat')
+        with self.assertRaisesRegex(k.KnowledgeError,'store of tr books'):
+            with tr.write() as c: tr.put_term(c,salat)
+        with ar.write() as c: ar.put_term(c,salat)
+        with tr.write() as c: tr.put_term(c,self.term)
+        self.assertEqual([r['id'] for r in ar.find('namaz','ro','ar')],[])
+        self.assertEqual([r['id'] for r in ar.find('صلاة','ro','ar')],['salat'])
+        self.assertEqual([r['id'] for r in tr.terms_list('ro')],['namaz'])
+        self.assertEqual([json.loads(line)['id'] for line in (self.root/'ar.jsonl').read_text(encoding='utf-8').splitlines()],['salat'])
         arabic=dict(json.loads(self.project.read_text(encoding='utf-8')),source_language='ar')
         self.source.write_text('## text/one.xhtml\nnamaz صلاة\n',encoding='utf-8')
-        self.assertEqual({hit['id'] for hit in self.store.scan(arabic)},{'salat'})
+        self.assertEqual({hit['id'] for hit in ar.scan(arabic)},{'salat'})
+        with self.assertRaises(k.KnowledgeError): tr.scan(arabic)
         self.assertEqual(set(k.load_project_terms(dict(self.adapter_project(),source_language='ar'),k.ROOT)),{'salat'})
     def test_configured_prefixes_attach_only_in_their_source_language(self):
         self.save('config.json',{'engine':'sqlite','path':str(self.root/'store.sqlite'),'word_prefixes':{'ar':['ال','وال','و']}})
@@ -128,7 +135,7 @@ class KnowledgeTests(unittest.TestCase):
         self.terms.append(dict(self.term,id='fr-namaz',language='fr'))
         self.import_data()
         terms=k.load_project_terms(self.adapter_project(),k.ROOT)
-        self.assertEqual(terms,{'namaz':{'reading':'Namaz','gloss':'rugăciune','body':self.term['footnote'],'later':'equivalent'}})
+        self.assertEqual(terms,{'namaz':{'reading':'Namaz','gloss':'rugăciune','body':self.term['footnote']}})
         self.assertTrue(re.fullmatch(k.stem_pattern('nefs poruncitor'),k.fold('Nefsului poruncitor')))
     def test_validator_adapter_missing_store_no_legacy_fallback(self):
         project=self.adapter_project(); project['terminology']='existing-legacy.md'; del project['knowledge']
@@ -222,6 +229,10 @@ class KnowledgeTests(unittest.TestCase):
         second=self.root/'second.jsonl'; other.export_terms(second)
         self.assertEqual(out.read_bytes(),second.read_bytes())
         self.assertEqual(json.loads(out.read_text(encoding='utf-8')),self.term)
+    def test_text_copy_from_before_schema_12_is_imported_without_later_use(self):
+        old=self.lines('old.jsonl',[dict(self.term,later_use='equivalent')])
+        self.store.import_terms(old)
+        self.assertEqual(self.store.term_get('namaz'),self.term)
     def test_scope_mismatch_and_path_boundary(self):
         with self.assertRaises(k.KnowledgeError) as caught: self.store.scan(self.project,'005-006')
         self.assertEqual(caught.exception.code,'missing_scope')

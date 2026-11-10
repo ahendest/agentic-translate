@@ -46,10 +46,14 @@ in a shorter prompt of one unit; only a second refusal goes to the user.
    the [translation-reviewer skill](../translation-reviewer/SKILL.md) and the
    project, source and target locations; pass no translator reasoning or prior verdicts.
    Segments with term placeholders wait for their terms.
-3. Append the missing terms from the translators' reports, one `term (source-segment.md:line)`
-   per line, to `../punctual-term-translation/results/requested-terms.md`; the terminology
+3. Append the term requests from the translators' reports, one `term (source-segment.md:line)`
+   per line, with its `translated: WORD` when reported, to
+   `../punctual-term-translation/results/requested-terms.md`; the terminology
    area resolves it. When approved wording arrives, start a fresh segment
-   translator for each waiting segment to complete it, then its reviewer.
+   translator for each waiting segment to complete it, then its reviewer; complete waiting
+   segments and corrections in book order. When the approved
+   wording differs from a translated word, give the units that hold the word to a fresh
+   reviewer with that correction as scope.
 4. Collect reviews; run the manifest's validator after final changes, with the unit range as
    scope (`--units 001-010`).
    Check coverage before terminology; fix target_integrity failures. The validator also rejects

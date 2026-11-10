@@ -8,7 +8,7 @@ Each source unit `NNN-name.md` has the target file `NNN-name.<language>.md`.
 
 A term's first use is read from the translation itself: in book order, the first retained
 occurrence of an approved term carries its parenthetical equivalent and footnote call, and the
-book defines that note once. Later occurrences carry no parenthetical. A term ID is a footnote ID
+book defines that note once. Later occurrences are the term alone, without a parenthetical. A term ID is a footnote ID
 that names an approved term; other footnotes are author notes.
 """
 
@@ -142,18 +142,18 @@ def check_editorial_footnotes(text: str, path: Path, terms: dict, noted: set[str
     if {match.group(1) for match in calls} != defined_here:
         raise RuntimeError(f"Terminology notes must be called and defined in the same unit: {path.name}")
 
-    # The first use reads `term (equivalent)[^id]`: the parenthetical when the term has an equivalent and a
-    # footnote or later uses keep the term alone, the call when it has a footnote. Later uses carry no
-    # parentheses. A term with neither has no first use: every use is written like a later use.
+    # The first use reads `term (equivalent)[^id]`: the parenthetical when the term has an equivalent, the
+    # call when it has a footnote. Later uses are the term alone, without parentheses. A term with
+    # neither has no first use.
     attached = set()
     for start, end, identifier in retained_occurrences(prose, terms):
         term = terms[identifier]
-        gloss = bool(term["gloss"]) and (bool(term["body"]) or term["later"] == "original")
+        gloss = bool(term["gloss"])
         parenthetical = PARENTHETICAL_RE.match(prose, end)
         if identifier in noted or not (gloss or term["body"]):
             if parenthetical:
                 raise RuntimeError(f"Parenthetical after the first use of {identifier}: {prose[start:end]}{parenthetical.group()} "
-                                   f"in {path.name}; write the equivalent without parentheses")
+                                   f"in {path.name}; write the term alone")
             continue
         if gloss and not parenthetical:
             raise RuntimeError(f"Missing parenthetical equivalent at the first use of {prose[start:end]} in {path.name}")
@@ -253,7 +253,7 @@ def main(argv=None) -> int:
             raise RuntimeError(f"Terminology note must be defined and called once in the book: {identifier}")
     print(f"translation-ok units={len(scope)}: present and non-empty, no waiting terms, "
           f"author notes kept={notes}" + (f", verbatim {script.title()} kept" if script else "") +
-          f", first uses with parenthetical and note={len(noted)}, later uses without parentheses; meaning is not checked")
+          f", first uses with parenthetical and note={len(noted)}, later uses alone; meaning is not checked")
     return 0
 
 

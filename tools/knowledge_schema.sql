@@ -1,5 +1,5 @@
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-INSERT INTO meta VALUES ('schema_version','11');
+INSERT INTO meta VALUES ('schema_version','12');
 
 -- Source dictionaries. Read-only after import: 'lugat' from knowledge/sources/db_lugat.sql,
 -- 'lisan-al-arab' from the downloaded Lisan al-Arab text (IDs from 1000000).
@@ -11,8 +11,7 @@ CREATE VIRTUAL TABLE lugat_fts USING fts5(id UNINDEXED, body, tokenize='unicode6
 -- A record serves one source language and one target language (language).
 -- The term ID is also the footnote ID in book text. NULL reading_form: the original is not kept,
 -- only the equivalent is written. NULL translation: the original is kept alone. NULL footnote:
--- no note. later_use: after the first use, 'equivalent' writes the term followed by its
--- equivalent, 'original' writes the term alone.
+-- no note. After its first use a retained term is written alone.
 CREATE TABLE terms (
   id TEXT PRIMARY KEY,
   language TEXT NOT NULL,
@@ -22,7 +21,6 @@ CREATE TABLE terms (
   translation TEXT,
   arabic TEXT,
   footnote TEXT,
-  later_use TEXT NOT NULL DEFAULT 'equivalent' CHECK (later_use IN ('equivalent','original')),
   sense TEXT NOT NULL,
   note TEXT,
   approval TEXT NOT NULL,

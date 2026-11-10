@@ -14,9 +14,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WRITE_ROOTS = (ROOT / 'knowledge',)
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 LANGUAGE = r'[a-z]{2,3}(?:-[a-z0-9]+)*'
-TERM_FIELDS = ('id','language','source_language','source_form','reading_form','translation','arabic','footnote','later_use','sense','note','approval','approved_at')
+TERM_FIELDS = ('id','language','source_language','source_form','reading_form','translation','arabic','footnote','sense','note','approval','approved_at')
 UNIT = re.compile(r'(\d+)-')
 LISAN_BASE = 1000000
 LISAN_CONTINUED = re.compile(r'\(\s*تابع')
@@ -188,19 +188,29 @@ def validate_term(r):
         fail('invalid_record','A term needs a reading form, a translation or a note',2)
     if r.get('footnote') and not r.get('reading_form'):
         fail('invalid_record','A footnote is called after the retained term; it needs a reading form',2)
-    if r.get('later_use','equivalent') not in ('equivalent','original'):
-        fail('invalid_record','later_use must be equivalent or original',2)
     unknown=set(r)-set(TERM_FIELDS)
     if unknown: fail('invalid_record',f'Unknown term fields: {sorted(unknown)}',2)
     if not re.fullmatch(r'[\w-]+',r['id']): fail('invalid_record','Term ID must be usable as a footnote ID',2)
     if not all(re.fullmatch(LANGUAGE,str(r[f])) for f in ('language','source_language')): fail('invalid_record','Invalid language code',2)
 
 class Knowledge:
-    def __init__(self, config_path):
+    """The store of one source language: its dictionaries and the terms approved for its books."""
+    def __init__(self, config_path, source_language=None):
         self.config = dict(config_path) if isinstance(config_path,dict) else load_json(config_path)
         if self.config.get('engine') != 'sqlite': fail('unsupported_engine','Shared knowledge supports SQLite only',2)
         required(self.config,['path'])
-        self.db = path(self.config['path'],write=True)
+        if '{source}' in self.config['path'] and not re.fullmatch(LANGUAGE,str(source_language or '')):
+            fail('missing_source_language','Name the source language of the store',2)
+        self.source_language=source_language
+        self.db = path(self.store_path('path'),write=True)
+
+    def _own(self,source_language):
+        if self.source_language and source_language!=self.source_language:
+            fail('language_conflict',f'This is the store of {self.source_language} books, not of {source_language}')
+
+    def store_path(self,field):
+        """A configured path of this source language's store; `{source}` stands for the language."""
+        return self.config[field].replace('{source}',self.source_language or '')
 
     def prefixes(self,source_language):
         """Prefixes that the source language attaches to the front of a word (config `word_prefixes`)."""
@@ -220,7 +230,7 @@ class Knowledge:
 
     def _version(self,c):
         if c.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0] != str(SCHEMA_VERSION):
-            fail('schema_version','Incompatible schema version: rebuild the store from knowledge/knowledge.jsonl (knowledge/overview.md#rebuild)',4)
+            fail('schema_version','Incompatible schema version: run workshop.py to rebuild the store',4)
 
     def init(self):
         self.db.parent.mkdir(parents=True,exist_ok=True)
@@ -260,7 +270,7 @@ class Knowledge:
         except Exception: c.rollback(); raise
         finally: c.close()
         if changed and export and self.config.get('export'):
-            self._refresh_export(self.config['export'])
+            self._refresh_export(self.store_path('export'))
 
     def _refresh_export(self,output):
         """Keep the text copy current; never replace a populated export with an empty store's view.
@@ -282,7 +292,9 @@ class Knowledge:
 
     def put_term(self,c,r):
         """Insert or replace one approved term."""
-        r=dict(r,later_use=r.get('later_use') or 'equivalent'); validate_term(r)
+        # A text copy written before schema 12 carries later_use; a retained term is now always alone after its first use.
+        r={k:v for k,v in r.items() if k!='later_use'}; validate_term(r)
+        self._own(r['source_language'])
         old=c.execute('SELECT language,source_language FROM terms WHERE id=?',(r['id'],)).fetchone()
         if old and tuple(old)!=(r['language'],r['source_language']): fail('language_conflict',f"Term {r['id']} belongs to another language pair")
         c.execute('INSERT INTO terms VALUES ('+','.join('?'*len(TERM_FIELDS))+') ON CONFLICT(id) DO UPDATE SET '+
@@ -375,6 +387,7 @@ class Knowledge:
     def scan(self,project,units=None):
         """Approved terms in a book's source units, in any inflection, with their unit and line; all units without a range."""
         manifest=project if isinstance(project,dict) else load_json(project); required(manifest,['target_language','source_language','prepared_source'])
+        self._own(manifest['source_language'])
         first,last=unit_range(units) if units else (1,float('inf'))
         files=[p for p in unit_files(manifest) if first<=unit_number(p)<=last]
         if not files: fail('missing_scope','No source units in the requested range',2)
@@ -417,12 +430,13 @@ def load_project_terms(project, repo_root=ROOT):
     manifest=project if isinstance(project,dict) else json.loads(resolve(project).read_text(encoding='utf-8'))
     required(manifest,['target_language','source_language'])
     if not manifest.get('knowledge'): fail('missing_knowledge_route','Project has no knowledge configuration route')
-    store=Knowledge(resolve(manifest['knowledge']))
-    return {r['id']:{'reading':r['reading_form'],'gloss':r['translation'],'body':r['footnote'],'later':r['later_use']}
+    store=Knowledge(resolve(manifest['knowledge']),manifest['source_language'])
+    return {r['id']:{'reading':r['reading_form'],'gloss':r['translation'],'body':r['footnote']}
             for r in store.terms_list(manifest['target_language'],manifest['source_language'])}
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__); parser.add_argument('--config',required=True)
+    parser.add_argument('--source-language',help='selects the store of this source language')
     sub=parser.add_subparsers(dest='command',required=True)
     def paging(p,limit=10):
         p.add_argument('--cursor',type=int,default=0); p.add_argument('--limit',type=int,default=limit)
@@ -432,15 +446,15 @@ def main(argv=None):
     sub.add_parser('export-terms').add_argument('--output',required=True)
     p=sub.add_parser('scan'); p.add_argument('--project',required=True); p.add_argument('--units'); paging(p)
     terms=sub.add_parser('terms').add_subparsers(dest='action',required=True)
-    a=terms.add_parser('list'); a.add_argument('--language',required=True); a.add_argument('--source-language'); paging(a,20)
+    a=terms.add_parser('list'); a.add_argument('--language',required=True); paging(a,20)
     a=terms.add_parser('get'); a.add_argument('--id',required=True)
-    a=terms.add_parser('find'); a.add_argument('--query',required=True); a.add_argument('--language',required=True); a.add_argument('--source-language',required=True); paging(a)
+    a=terms.add_parser('find'); a.add_argument('--query',required=True); a.add_argument('--language',required=True); paging(a)
     lugat=sub.add_parser('lugat').add_subparsers(dest='action',required=True)
     a=lugat.add_parser('search'); a.add_argument('--query',required=True); paging(a)
     a=lugat.add_parser('get'); a.add_argument('--id',type=int,required=True)
     args=parser.parse_args(argv)
     try:
-        k=Knowledge(args.config); cmd=args.command
+        k=Knowledge(args.config,args.source_language); cmd=args.command
         if cmd=='init': result=k.init()
         elif cmd=='integrity': result=k.integrity()
         elif cmd=='import-lugat': result=k.import_lugat(args.input)

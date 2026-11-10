@@ -12,9 +12,11 @@ section governs style only, not terminology.
 
 ## Terminology
 
-Request a religious or technical concept that has no approved record unless an ordinary
-target-language word carries its full meaning in the paragraph: the name of a ritual act of
-worship is not a generic word, but common words of thought or knowledge translate directly.
+When the target language has a usual word for a concept, translate with it and request
+nothing. Request a religious or technical concept that has no approved record only when the
+target language has no usual word for it; its unit waits. When a usual word exists but you
+doubt that it carries the concept's full meaning in the paragraph, translate with it and
+report the term as `translated: WORD`; the unit does not wait.
 Arabic origin alone does not make a word a term. The user decides requested terms in the
 terminology area. Existing approvals remain binding. Proposals, historical evidence and
 lexical matches do not approve wording. Name God as Allah, not with the target language's
@@ -23,16 +25,14 @@ generic word for God.
 Use the approved reading form and note of the record. Inflect the retained term and its
 equivalent as the sentence requires; do not keep the original form blindly. At the first use
 in the book write `term (equivalent)[^TERM_ID]` and define the exact note in the same unit; at
-every later use place the equivalent directly after the term, as an apposition (`term
-equivalent`). The translation is made in book order, so the earlier translated units show
-whether the note already exists.
+every later use write the term alone. The translation is made in book order; `read` tells
+for each known term whether the unit holds its first use.
 
 A record may lack parts by the user's decision; apply it as stored:
 
-- no footnote: write every use like a later use;
+- no reading form: write the translation alone, never the original;
 - no translation: keep the original alone, with `[^TERM_ID]` at the first use when it has a footnote;
-- no reading form: write the translation alone, by meaning;
-- `later_use: original`: the first use reads `term (equivalent)`, later uses the term alone;
+- no footnote: the first use reads `term (equivalent)`, without a note call;
 - only a note: translate by meaning as the note says.
 
 Derived words, plurals and spelling variants of an approved term follow that term: translate
@@ -75,7 +75,9 @@ way.
 
 ```bash
 env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools -p 'test_*.py'
-python3 -B tools/knowledge.py --config knowledge/config.json integrity
+python3 -B tools/knowledge.py --config knowledge/config.json --source-language SOURCE_LANG integrity
 ```
+
+Run the integrity check for each of `source_languages` in `knowledge/config.json`.
 
 Run affected book validators when their code/inputs change; do not build publications for maintenance.

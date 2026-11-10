@@ -33,8 +33,9 @@ finished after your approval.
 
 - `sources/<book>/overview.md`: what was prepared from the EPUB and anything to check.
 - `translations/<language>/<book>/translation/`: the translated units.
-- `knowledge/knowledge.jsonl`: your approved terms, readable as text. Your terms stay on your
-  computer; the workshop starts with none.
+- `knowledge/<source language>.jsonl`, for example `ar.jsonl`: your approved terms for books of
+  that language, readable as text. Your terms stay on your computer; the workshop starts with
+  none.
 
 Books and translations stay on your computer; they are not part of this repository. Building a
 printed edition from an EPUB-based translation is a later feature.

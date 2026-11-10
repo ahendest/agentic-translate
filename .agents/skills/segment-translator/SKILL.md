@@ -16,9 +16,11 @@ lines in the same order; do not start agents.
    python3 -B tools/translation.py read --project PROJECT_JSON --unit UNIT_ID
    ```
 
-   Retrieve the exact approved wording of every returned known term before drafting with
-   `term-request` (step 2) for its original form.
-2. Check terms that need special treatment:
+   `known_terms` gives each approved term of the unit with its wording: `reading_form`,
+   `translation`, `note`, and `first_use` with the exact `footnote` when no earlier unit holds
+   the term. A hit can be another word with the same letters; decide by the paragraph.
+2. Check a concept that is not among the known terms and has no usual target-language word,
+   or whose usual word you doubt:
 
    ```bash
    python3 -B tools/translation.py term-request --project PROJECT_JSON --term "TERM" --at "SOURCE_SEGMENT.md:LINE"
@@ -32,11 +34,11 @@ lines in the same order; do not start agents.
    concept; otherwise treat the term as missing. For a missing term, keep
    `{{TERM:source form}}` as a placeholder and collect the returned request text
    `term (source-segment.md:line)`. The validator rejects any `{{TERM:`
-   placeholder inside the requested scope.
+   placeholder inside the requested scope. For a word translated in doubt, write no
+   placeholder; collect its request text followed by `translated: WORD`.
 3. Understand the full unit, translate it and compare each target paragraph against its
    source. For recurring titles, formulas and names, search the earlier translated segments
    and reuse their rendering.
-4. When completing a waiting segment, replace each placeholder with the approved term and
-   its equivalent. If no earlier unit holds the note (`grep -l "^\[\^TERM_ID\]:" TRANSLATION_DIR/*.md`),
-   its first occurrence in this unit is the first use.
-5. Report only the target file, the missing term requests and unresolved passages.
+4. When completing a waiting segment, read the unit again and replace each placeholder as
+   its record says.
+5. Report only the target file, the term requests and unresolved passages.

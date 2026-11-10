@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- A concept with a usual target-language word is translated without a term request; only a
+  concept without one is requested and holds its unit. A word translated in doubt is reported
+  as `translated: WORD` and its unit does not wait.
+- A retained term is written alone after its first use; the form `term equivalent` is gone.
+  Store schema 12 drops `later_use`; a text copy written before it is still imported. A term
+  with an equivalent and no footnote now has its first use `term (equivalent)`. A book
+  translated before this change fails validation at such terms until it is revised.
+- `read` returns the approved wording of each known term, `first_use`, and the footnote when
+  the unit holds the first use; translators no longer look each known term up.
+- `prepare_epub.py` divides a long document without headings between paragraphs into units of
+  about `LONG` characters; a paragraph is never cut. Headings that follow each other without
+  text stay with the text after them. Prepared books stay as they are.
+- One store per source language: `knowledge/SOURCE_LANG.sqlite` holds that language's
+  dictionaries (`dictionaries` in `knowledge/config.json`) and the terms approved for its books;
+  its text copy is `knowledge/SOURCE_LANG.jsonl`. Every `knowledge.py` command takes
+  `--source-language`; a store refuses terms of another source language. `workshop.py` splits
+  an earlier single store once and keeps the old files as `.old`.
 - Steps move out of AGENTS.md into the `translation-coordinator` and `segment-translator`
   skills, so each fresh agent loads only its own steps; AGENTS.md keeps Voice, Terminology and
   the boundaries. Rules of the workshop root are no longer repeated. Book text names God as

@@ -1,1 +1,1 @@
-{"engine":"sqlite","path":"knowledge/knowledge.sqlite","export":"knowledge/knowledge.jsonl","source_languages":["ar","tr"],"word_prefixes":{"ar":["ال","لل","وال","فال","بال","كال","ولل","فلل","وبال","فبال","وكال","و","ف","ب","ك","ل","وب","فب","وك","ول","فل"]}}
+{"engine":"sqlite","path":"knowledge/{source}.sqlite","export":"knowledge/{source}.jsonl","source_languages":["ar","tr"],"dictionaries":{"ar":["lisan-al-arab"],"tr":["lugat"]},"word_prefixes":{"ar":["ال","لل","وال","فال","بال","كال","ولل","فلل","وبال","فبال","وكال","و","ف","ب","ك","ل","وب","فب","وك","ول","فل"]}}

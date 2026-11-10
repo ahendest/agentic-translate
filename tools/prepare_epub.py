@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert an EPUB into located Markdown units: one file per spine document, split at headings when long."""
+"""Convert an EPUB into located Markdown units: one file per spine document, split at headings, or between paragraphs, when long."""
 import argparse
 import hashlib
 import html.parser
@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[1]
-LONG = 24000  # Markdown characters; a longer document is split at its headings
+LONG = 24000  # Markdown characters; a longer document is split at its headings, or between paragraphs
 SKIPPED_GUIDE = {'cover', 'toc', 'copyright-page'}
 VOID = {'area', 'base', 'br', 'col', 'hr', 'img', 'input', 'link', 'meta', 'source', 'wbr'}
 BLOCK = {'address', 'article', 'aside', 'blockquote', 'body', 'dd', 'div', 'dl', 'dt', 'figcaption', 'figure',
@@ -234,19 +234,35 @@ class Renderer:
 
 
 def sections(blocks):
-    """Split blocks before each heading; the first section keeps whatever precedes the first heading."""
+    """Split blocks before each heading; the first section keeps whatever precedes the first heading.
+    Headings that follow each other without text stay in one section, with the text after them."""
     parts = [[]]
     for block in blocks:
-        if block.startswith('#') and parts[-1]:
+        if block.startswith('#') and not all(b.startswith('#') for b in parts[-1]):
             parts.append([])
         parts[-1].append(block)
     return parts
 
 
+def pieces(section):
+    """A section longer than LONG is divided between its paragraphs into pieces of at most LONG characters;
+    a paragraph is never cut and headings stay with the paragraph after them."""
+    parts, size = [[]], 0
+    for block in section:
+        headings_alone = all(b.startswith('#') for b in parts[-1])
+        if parts[-1] and size + len(block) + 2 > LONG and not headings_alone:
+            parts.append([])
+            size = 0
+        parts[-1].append(block)
+        size += len(block) + 2
+    return parts
+
+
 def units(blocks, notes):
-    """Group heading sections into units of about LONG characters where headings allow; short sections join a neighbour."""
+    """Group heading sections into units of about LONG characters; a long section without headings is divided
+    between paragraphs, and short sections join a neighbour."""
     groups, size = [[]], 0
-    for section in sections(blocks):
+    for section in (piece for whole in sections(blocks) for piece in pieces(whole)):
         length = sum(len(b) + 2 for b in section)
         if groups[-1] and size + length > LONG and min(size, length) >= LONG // 4:
             groups.append([])
@@ -293,8 +309,6 @@ def convert(epub, book_id):
         for index, (group, notes) in enumerate(parts, 1):
             heading = '## ' + document + (f' ({index}/{len(parts)})' if len(parts) > 1 else '')
             text = '\n\n'.join([heading] + group + [note_text(i, b) for i, b in notes]) + '\n'
-            if len(text) > LONG and len(group) > 1 and not any(b.startswith('#') for b in group[1:]):
-                defects.append(f'long text without headings in {document}; kept as one unit')
             produced.append((document, text))
     width = max(3, len(str(len(produced))))
     files = {}

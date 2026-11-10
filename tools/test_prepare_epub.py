@@ -77,14 +77,30 @@ class PrepareEpubTests(unittest.TestCase):
         p.write(self.epub, 'book', self.root)
         self.assertIn('5. Fifth\n\n9. Ninth\n\n10. Tenth\n\n- Item', self.files()['002-b.md'])
 
-    def test_long_document_splits_at_headings_only(self):
-        with patch.object(p, 'LONG', 40):
+    def test_long_document_splits_at_headings_and_between_paragraphs(self):
+        build(self.epub, b_body=''.join(f'<p>{letter * 30}</p>' for letter in 'abc') + '<p>dd</p>')
+        with patch.object(p, 'LONG', 60):
             p.write(self.epub, 'book', self.root)
         files = self.files()
-        self.assertEqual(list(files), ['001-a.md', '002-a.md', '003-b.md'])
-        self.assertTrue(files['002-a.md'].startswith('## OEBPS/text/a.xhtml (2/2)\n\n#### Part two'))
-        self.assertIn('[^1]: Author note.', files['001-a.md'])
-        self.assertNotIn('[^1]', files['002-a.md'])
+        self.assertEqual(list(files), ['001-a.md', '002-a.md', '003-a.md', '004-b.md', '005-b.md', '006-b.md'])
+        self.assertTrue(files['003-a.md'].startswith('## OEBPS/text/a.xhtml (3/3)\n\n#### Part two'))
+        self.assertIn('[^1]: Author note.', files['002-a.md'])
+        self.assertNotIn('[^1]', files['001-a.md'] + files['003-a.md'])
+        # Without headings the text is divided between paragraphs, never inside one; a short rest joins its neighbour.
+        self.assertEqual(files['005-b.md'], '## OEBPS/text/b.xhtml (2/3)\n\n' + 'b' * 30 + '\n')
+        self.assertEqual(files['006-b.md'], '## OEBPS/text/b.xhtml (3/3)\n\n' + 'c' * 30 + '\n\ndd\n')
+
+    def test_heading_stays_with_a_long_paragraph_after_it(self):
+        with patch.object(p, 'LONG', 100):
+            groups = [group for group, _ in p.units(['x' * 90, '#### H', 'y' * 150, 'z' * 20], [])]
+        self.assertEqual(groups, [['x' * 90], ['#### H', 'y' * 150, 'z' * 20]])
+
+    def test_headings_in_a_row_stay_with_the_text_after_them(self):
+        with patch.object(p, 'LONG', 100):
+            groups = [group for group, _ in p.units(['x' * 90, '### H1', '#### H2', 'y' * 150], [])]
+            small = [group for group, _ in p.units(['x' * 90, '### H1', '#### H2', 'y' * 40, '#### H3', 'z' * 40], [])]
+        self.assertEqual(groups, [['x' * 90], ['### H1', '#### H2', 'y' * 150]])
+        self.assertEqual(small, [['x' * 90], ['### H1', '#### H2', 'y' * 40], ['#### H3', 'z' * 40]])
 
     def test_rerun_is_byte_identical_and_changed_source_is_refused(self):
         p.write(self.epub, 'book', self.root)

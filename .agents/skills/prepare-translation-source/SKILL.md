@@ -18,7 +18,8 @@ python3 -B tools/prepare_epub.py --epub "SOURCE_EPUB" --book BOOK_ID
 ```
 
 It writes `sources/<book-id>/segments/NNN-<name>.md`, one unit per spine document in spine
-order, split at headings when a document is long, and `sources/<book-id>/overview.md` with the
+order, split at headings when a document is long, or between paragraphs where it has no
+headings, and `sources/<book-id>/overview.md` with the
 title, the unit list, the documents it did not convert and the defects it found. Each unit
 starts with a level-2 heading naming its spine document; locators are `segment.md:line`.
 Author notes follow their unit as Markdown footnotes, each body once at its call, also when
@@ -37,9 +38,7 @@ the user names it.
    with the matching EPUB documents: order, headings, paragraphs and author notes with their
    calls. Text in other scripts, such as Arabic, is copied exactly by the tool; do not check
    it by hand.
-3. A long unit without headings stays one unit; never split unlocated text by length. List
-   such units in the report.
-4. Fix a unit only for a defect the EPUB itself proves, by editing that file with the
+3. Fix a unit only for a defect the EPUB itself proves, by editing that file with the
    smallest change. Record the fix in the overview under Defects. If meaning, negation,
    number, proper name, quotation or theology remains uncertain, hold that passage and report
    it.
@@ -53,5 +52,5 @@ Omit progress, release, approval, history or segment status.
 
 ## Report
 
-Return to the coordinator: project path, unit count, documents not converted, long units
-without headings, fixes made and passages held.
+Return to the coordinator: project path, unit count, documents not converted, fixes made and
+passages held.

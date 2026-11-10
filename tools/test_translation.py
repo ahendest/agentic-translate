@@ -184,8 +184,31 @@ class TranslationTests(unittest.TestCase):
         before = t.fingerprint(self.store.db)
         code, result = self.cli('read', '--project', t.relative(self.manifest), '--unit', '001-one')
         self.assertEqual(code, 0)
-        self.assertEqual(result['result']['known_terms'], [{'id': 'namaz', 'term': 'namaz', 'text': 'Namaz', 'line': 2}])
+        record = self.term()
+        wording = {'id': 'namaz', 'term': 'namaz', 'text': 'Namaz', 'line': 2, 'reading_form': 'namaz',
+                   'translation': 'rugăciune rituală', 'note': None}
+        self.assertEqual(result['result']['known_terms'], [dict(wording, first_use=True, footnote=record['footnote'])])
         self.assertEqual(t.fingerprint(self.store.db), before)
+        # An earlier translated unit that holds the term: this unit writes a later use and needs no footnote.
+        self.save('sources/book/segments/002-two.md', '## text/two.xhtml\nNamaz.\n')
+        self.save('translations/ro/book/translation/001-one.ro.md',
+                  f"## text/one.xhtml\nNamazul (rugăciunea rituală)[^namaz].\n\n[^namaz]: {record['footnote']}\n".replace('\nwith', '\n    with'))
+        _, later = self.cli('read', '--project', t.relative(self.manifest), '--unit', '002-two')
+        self.assertEqual(later['result']['known_terms'], [dict(wording, text='Namaz', first_use=False, footnote=None)])
+        # While no earlier unit holds the term, the first use stays open.
+        self.save('translations/ro/book/translation/001-one.ro.md', '## text/one.xhtml\nText.\n')
+        _, again = self.cli('read', '--project', t.relative(self.manifest), '--unit', '002-two')
+        self.assertTrue(again['result']['known_terms'][0]['first_use'])
+        # A retained term without equivalent and footnote has no first use, as in the validator.
+        self.term(translation=None, footnote=None)
+        _, bare = self.cli('read', '--project', t.relative(self.manifest), '--unit', '002-two')
+        self.assertFalse(bare['result']['known_terms'][0]['first_use'])
+        # A project without a translation route still reads its units.
+        manifest = json.loads(self.manifest.read_text(encoding='utf-8'))
+        del manifest['translation']
+        self.save('translations/ro/book/project.json', manifest)
+        code, routed = self.cli('read', '--project', t.relative(self.manifest), '--unit', '002-two')
+        self.assertEqual((code, routed['ok']), (0, True))
 
     def test_read_does_not_silently_skip_unavailable_terminology_store(self):
         self.store.db.unlink()

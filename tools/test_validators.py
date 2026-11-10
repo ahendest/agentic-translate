@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 QUOTE = 'بِسْمِ اللّهِ الرَّحْمٰنِ'
 NOTE = 'Namaz (arab. ṣalāt, صَلَاة): rugăciunea rituală.'
 FIRST = f'## a\nNamazul (rugăciunea)[^namaz] începe cu {QUOTE}.\n\n[^namaz]: {NOTE}\n'
-# A later use carries the equivalent without parentheses.
-SECOND = '## b\nNamazurile rugăciunii urmează.\n'
+# A later use is the term alone.
+SECOND = '## b\nNamazurile urmează.\n'
 
 
 class ValidatorTests(unittest.TestCase):
@@ -91,17 +91,20 @@ class ValidatorTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'Waiting terminology placeholder'):
             self.run_scope('001-002')
 
-    def test_term_without_footnote_is_written_as_a_later_use_everywhere(self):
+    def test_term_without_footnote_has_its_equivalent_at_the_first_use_only(self):
         with self.store.write() as connection:
             self.store.put_term(connection, {'id': 'evliya', 'language': 'ro', 'source_language': 'tr', 'source_form': 'evliya', 'reading_form': 'evliya',
                                              'translation': 'prieteni', 'arabic': None, 'footnote': None, 'sense': 'saints',
                                              'note': None, 'approval': 'Fixture', 'approved_at': '2026-10-28'})
-        self.save('translation/002-b.ro.md', SECOND.replace('urmează', 'și evliya prieteni urmează'))
+        self.save('translation/002-b.ro.md', SECOND.replace('urmează', 'și evliya (prieteni) urmează, iar evliya rămân'))
         self.assertEqual(self.run_scope('001-002'), 0)
-        self.save('translation/002-b.ro.md', SECOND.replace('urmează', 'și evliya (prieteni) urmează'))
+        self.save('translation/002-b.ro.md', SECOND.replace('urmează', 'și evliya urmează'))
+        with self.assertRaisesRegex(RuntimeError, 'Missing parenthetical equivalent at the first use of evliya'):
+            self.run_scope('001-002')
+        self.save('translation/002-b.ro.md', SECOND.replace('urmează', 'și evliya (prieteni) urmează, iar evliya (prieteni) rămân'))
         with self.assertRaisesRegex(RuntimeError, 'Parenthetical after the first use of evliya'):
             self.run_scope('001-002')
-        self.save('translation/002-b.ro.md', SECOND.replace('urmează', 'și evliya urmează') + '\n[^evliya]: Nota.\n')
+        self.save('translation/002-b.ro.md', SECOND.replace('urmează', 'și evliya (prieteni) urmează') + '\n[^evliya]: Nota.\n')
         with self.assertRaisesRegex(RuntimeError, 'Unapproved or altered editorial footnote evliya'):
             self.run_scope('001-002')
 
@@ -150,10 +153,10 @@ class ValidatorTests(unittest.TestCase):
         self.save('segments/002-b.md', '## b\nNamazlar[^1] devam eder.\n\n[^1]: Yazar notu.\n')
         with self.assertRaisesRegex(RuntimeError, 'Author notes differ from the source in 002-b.ro.md'):
             self.run_scope('001-002')
-        self.save('translation/002-b.ro.md', '## b\nNamazurile rugăciunii[^2] urmează.\n\n[^2]: Nota autorului.\n')
+        self.save('translation/002-b.ro.md', '## b\nNamazurile[^2] urmează.\n\n[^2]: Nota autorului.\n')
         with self.assertRaisesRegex(RuntimeError, 'Author notes differ'):
             self.run_scope('001-002')
-        self.save('translation/002-b.ro.md', '## b\nNamazurile rugăciunii[^1] urmează.\n\n[^1]: Nota autorului.\n')
+        self.save('translation/002-b.ro.md', '## b\nNamazurile[^1] urmează.\n\n[^1]: Nota autorului.\n')
         self.assertEqual(self.run_scope('001-002'), 0)
 
     def test_first_retained_occurrence_in_book_order_carries_the_note(self):
@@ -185,15 +188,15 @@ class ValidatorTests(unittest.TestCase):
         fixture = {'language': 'ro', 'source_language': 'tr', 'arabic': None, 'footnote': None, 'sense': 's', 'note': None,
                    'approval': 'Fixture', 'approved_at': '2026-10-30'}
         with self.store.write() as connection:
-            for record in ({'id': 'ummet', 'source_form': 'ümmet', 'reading_form': 'ummet', 'translation': 'comunitate', 'later_use': 'original'},
+            for record in ({'id': 'ummet', 'source_form': 'ümmet', 'reading_form': 'ummet', 'translation': 'comunitate'},
                            {'id': 'mehdi', 'source_form': 'mehdi', 'reading_form': 'mehdi', 'translation': None, 'footnote': mehdi},
                            {'id': 'aktab', 'source_form': 'aktab', 'reading_form': None, 'translation': 'poli spirituali'}):
                 self.store.put_term(connection, dict(fixture, **record))
         self.save('translation/001-a.ro.md', FIRST.replace('începe', 'ummetului (comunitatea), lui mehdi[^mehdi] și polilor spirituali începe')
                   + f'\n[^mehdi]: {mehdi}\n')
-        self.save('translation/002-b.ro.md', '## b\nNamazurile rugăciunii ummetului și ale lui mehdi urmează.\n')
+        self.save('translation/002-b.ro.md', '## b\nNamazurile ummetului și ale lui mehdi urmează.\n')
         self.assertEqual(self.run_scope('001-002'), 0)
-        self.save('translation/002-b.ro.md', '## b\nNamazurile rugăciunii ummetului (comunitatea) urmează.\n')
+        self.save('translation/002-b.ro.md', '## b\nNamazurile ummetului (comunitatea) urmează.\n')
         with self.assertRaisesRegex(RuntimeError, 'Parenthetical after the first use of ummet'):
             self.run_scope('001-002')
 

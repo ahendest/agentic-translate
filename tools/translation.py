@@ -11,6 +11,7 @@ import unicodedata
 from pathlib import Path
 
 import knowledge
+import validate_translation
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -135,7 +136,7 @@ def term_request(project_path, term, location):
     while end < len(lines) and lines[end].strip() and not lines[end].startswith('#'):
         end += 1
     require(term.strip(), 'Term must not be empty')
-    store = knowledge.Knowledge(local(data['knowledge']))
+    store = knowledge.Knowledge(local(data['knowledge']), data['source_language'])
     require(re.search(knowledge.stem_pattern(term, store.prefixes(data['source_language'])),
                       knowledge.fold('\n'.join(lines[start:end]))),
             'Term is absent from the located paragraph')
@@ -150,14 +151,41 @@ def term_request(project_path, term, location):
     return {'state': 'candidates', 'records': found, 'text': request_text}
 
 
+def used_before(data, number, terms):
+    """The retained terms that the translated units before this one already hold, as the validator reads them."""
+    used = set()
+    if not data.get('translation'):
+        return used
+    folder = local(data['translation'])
+    for path in sorted(folder.glob(f"*.{data['target_language']}.md")) if folder.is_dir() else []:
+        if knowledge.UNIT.match(path.name) and knowledge.unit_number(path) < number:
+            text = validate_translation.PLACEHOLDER_RE.sub('', path.read_text(encoding='utf-8'))
+            for start, end, _, _ in reversed(list(validate_translation.note_blocks(text, terms))):
+                text = text[:start] + text[end:]
+            used.update(identifier for _, _, identifier in validate_translation.retained_occurrences(text, terms))
+    return used
+
+
 def known_terms(data, unit_path):
-    """The first occurrence in one unit of each approved term, in any inflection, without a whole glossary."""
+    """The first occurrence in one unit of each approved term, in any inflection, with its approved wording and
+    without a whole glossary. `first_use` tells whether the unit holds the first use that the validator demands:
+    a retained term with an equivalent or a footnote that no earlier translated unit holds; the footnote is
+    given only then."""
     require(data.get('knowledge'), 'No terminology route for this project')
     number = knowledge.unit_number(unit_path)
     found = {}
     manifest = dict(data, prepared_source=str(local(data['prepared_source'])))
-    for hit in knowledge.Knowledge(local(data['knowledge'])).scan(manifest, f'{number}-{number}'):
+    store = knowledge.Knowledge(local(data['knowledge']), data['source_language'])
+    for hit in store.scan(manifest, f'{number}-{number}'):
         found.setdefault(hit['id'], {k: hit[k] for k in ('id', 'term', 'text', 'line')})
+    if found:
+        records = {r['id']: r for r in store.terms_list(data['target_language'], data['source_language'])}
+        used = used_before(data, number, knowledge.load_project_terms(data, ROOT))
+        for identifier, hit in found.items():
+            record = records[identifier]
+            first = bool(record['reading_form'] and (record['translation'] or record['footnote'])) and identifier not in used
+            hit.update(reading_form=record['reading_form'], translation=record['translation'], note=record['note'],
+                       first_use=first, footnote=record['footnote'] if first else None)
     return sorted(found.values(), key=lambda hit: (hit['line'], hit['id']))
 
 
